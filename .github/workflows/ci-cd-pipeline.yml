@@ -16,6 +16,8 @@ env:
 
 jobs:
   build:
+    # For local Nexus uploads, change to: runs-on: self-hosted
+    # Setup: See .github/SELF_HOSTED_RUNNER_SETUP.md
     runs-on: windows-latest
     
     steps:
@@ -77,6 +79,8 @@ jobs:
             Write-Host "✓ Uploaded to Nexus (Status: $($response.StatusCode))"
           } catch {
             Write-Host "⚠ Warning: Nexus upload failed - $($_.Exception.Message)"
+            Write-Host "ℹ Note: If using windows-latest runner, Nexus is not accessible."
+            Write-Host "ℹ Solution: Setup self-hosted runner on your VM (see .github/SELF_HOSTED_RUNNER_SETUP.md)"
           }
         shell: pwsh
         continue-on-error: true
