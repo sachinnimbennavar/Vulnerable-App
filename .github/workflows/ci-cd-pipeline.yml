@@ -47,7 +47,8 @@ jobs:
           }
           
           $zip.Dispose()
-          Write-Host "✓ ZIP created: $(Get-Item $zipPath | % {'{0:F2}' -f ($_.Length / 1MB)} MB)"
+          $zipSize = "{0:F2}" -f ((Get-Item $zipPath).Length / 1MB)
+          Write-Host "✓ ZIP created: $zipSize MB"
         shell: pwsh
 
       - name: Upload to GitHub Artifacts
