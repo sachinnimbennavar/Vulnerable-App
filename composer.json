@@ -1,0 +1,18 @@
+{
+    "name": "demo/vulnerable-app",
+    "description": "Vulnerable monolithic web application for SSDLC demonstration",
+    "type": "project",
+    "require": {
+        "php": ">=7.2.0",
+        "monolog/monolog": "1.23.0",
+        "symfony/yaml": "3.4.0",
+        "twig/twig": "1.42.0",
+        "doctrine/dbal": "2.9.0",
+        "guzzlehttp/guzzle": "6.3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    }
+}

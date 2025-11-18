@@ -1,0 +1,439 @@
+{
+  "summary": {
+    "title": "Vulnerable Demo Application - Threat Model",
+    "owner": "Security Team",
+    "description": "Threat model for intentionally vulnerable demo application used for SSDLC training",
+    "id": 0
+  },
+  "detail": {
+    "contributors": [
+      {
+        "name": "Security Analyst"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": 0,
+        "title": "Application Architecture",
+        "diagramType": "STRIDE",
+        "placeholder": "New STRIDE diagram description",
+        "thumbnail": "./public/content/images/thumbnail.stride.jpg",
+        "version": "2.1.0",
+        "cells": [
+          {
+            "position": {
+              "x": 100,
+              "y": 100
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "Web Browser\n(User)"
+              },
+              "body": {
+                "stroke": "#333333",
+                "strokeWidth": 1.5,
+                "fill": "#ffffff"
+              }
+            },
+            "visible": true,
+            "shape": "actor",
+            "zIndex": 1,
+            "id": "user-browser",
+            "data": {
+              "type": "tm.Actor",
+              "name": "Web Browser (User)",
+              "description": "End user accessing the vulnerable web application",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "threats": [
+                {
+                  "id": "threat-1",
+                  "title": "Malicious Input via Browser",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Tampering",
+                  "description": "Attacker can inject malicious scripts or SQL commands through form inputs",
+                  "mitigation": "Implement input validation and output encoding",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 1,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "position": {
+              "x": 400,
+              "y": 100
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "Apache Web Server\n(PHP Application)"
+              },
+              "body": {
+                "stroke": "#333333",
+                "strokeWidth": 1.5,
+                "fill": "#ffffff"
+              }
+            },
+            "visible": true,
+            "shape": "process",
+            "zIndex": 2,
+            "id": "web-server",
+            "data": {
+              "type": "tm.Process",
+              "name": "Apache Web Server",
+              "description": "Apache server running vulnerable PHP application",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "threats": [
+                {
+                  "id": "threat-2",
+                  "title": "SQL Injection",
+                  "status": "Open",
+                  "severity": "Critical",
+                  "type": "Tampering",
+                  "description": "Application vulnerable to SQL injection attacks in login, search, and post creation",
+                  "mitigation": "Use prepared statements and parameterized queries",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 2,
+                  "score": ""
+                },
+                {
+                  "id": "threat-3",
+                  "title": "Cross-Site Scripting (XSS)",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Information Disclosure",
+                  "description": "Stored and reflected XSS vulnerabilities in posts, search, and error messages",
+                  "mitigation": "Implement proper output encoding and Content Security Policy",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 3,
+                  "score": ""
+                },
+                {
+                  "id": "threat-4",
+                  "title": "Missing Authentication",
+                  "status": "Open",
+                  "severity": "Critical",
+                  "type": "Elevation of Privilege",
+                  "description": "Weak or missing authentication on sensitive pages and API endpoints",
+                  "mitigation": "Implement proper session management and authentication checks",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 4,
+                  "score": ""
+                },
+                {
+                  "id": "threat-5",
+                  "title": "Hardcoded Credentials",
+                  "status": "Open",
+                  "severity": "Critical",
+                  "type": "Information Disclosure",
+                  "description": "Database credentials and API keys hardcoded in source code",
+                  "mitigation": "Use environment variables and secure credential storage",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 5,
+                  "score": ""
+                },
+                {
+                  "id": "threat-6",
+                  "title": "Unrestricted File Upload",
+                  "status": "Open",
+                  "severity": "Critical",
+                  "type": "Tampering",
+                  "description": "No validation on file uploads allowing arbitrary file execution",
+                  "mitigation": "Implement file type validation, size limits, and virus scanning",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 6,
+                  "score": ""
+                },
+                {
+                  "id": "threat-7",
+                  "title": "Missing CSRF Protection",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Tampering",
+                  "description": "No CSRF tokens on state-changing operations",
+                  "mitigation": "Implement CSRF tokens for all forms",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 7,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "position": {
+              "x": 700,
+              "y": 100
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "SQLite Database"
+              },
+              "body": {
+                "stroke": "#333333",
+                "strokeWidth": 1.5,
+                "fill": "#ffffff"
+              }
+            },
+            "visible": true,
+            "shape": "store",
+            "zIndex": 3,
+            "id": "database",
+            "data": {
+              "type": "tm.Store",
+              "name": "SQLite Database",
+              "description": "Database storing user credentials and application data",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "threats": [
+                {
+                  "id": "threat-8",
+                  "title": "Plain Text Password Storage",
+                  "status": "Open",
+                  "severity": "Critical",
+                  "type": "Information Disclosure",
+                  "description": "Passwords stored in plain text without hashing",
+                  "mitigation": "Use bcrypt or Argon2 for password hashing",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 8,
+                  "score": ""
+                },
+                {
+                  "id": "threat-9",
+                  "title": "IDOR Vulnerability",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Information Disclosure",
+                  "description": "Users can access other users' profiles without authorization",
+                  "mitigation": "Implement proper access control checks",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 9,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "position": {
+              "x": 400,
+              "y": 300
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "File System\n(Upload Directory)"
+              },
+              "body": {
+                "stroke": "#333333",
+                "strokeWidth": 1.5,
+                "fill": "#ffffff"
+              }
+            },
+            "visible": true,
+            "shape": "store",
+            "zIndex": 4,
+            "id": "file-system",
+            "data": {
+              "type": "tm.Store",
+              "name": "File System",
+              "description": "Server file system for uploaded files",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "threats": [
+                {
+                  "id": "threat-10",
+                  "title": "Path Traversal",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Tampering",
+                  "description": "Attackers can access files outside upload directory",
+                  "mitigation": "Validate and sanitize file paths",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 10,
+                  "score": ""
+                },
+                {
+                  "id": "threat-11",
+                  "title": "Excessive Permissions",
+                  "status": "Open",
+                  "severity": "Medium",
+                  "type": "Elevation of Privilege",
+                  "description": "Upload directory has 777 permissions",
+                  "mitigation": "Set appropriate file permissions (644 for files, 755 for directories)",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 11,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "shape": "flow",
+            "attrs": {
+              "line": {
+                "stroke": "#333333",
+                "strokeWidth": 1,
+                "targetMarker": {
+                  "name": "block"
+                },
+                "strokeDasharray": null
+              }
+            },
+            "width": 200,
+            "height": 100,
+            "zIndex": 10,
+            "connector": "smooth",
+            "data": {
+              "type": "tm.Flow",
+              "name": "HTTP Request",
+              "description": "User sends HTTP requests to web server",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "threats": [
+                {
+                  "id": "threat-12",
+                  "title": "Man-in-the-Middle Attack",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Information Disclosure",
+                  "description": "No HTTPS encryption, credentials sent in plain text",
+                  "mitigation": "Implement HTTPS with valid SSL/TLS certificates",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 12,
+                  "score": ""
+                },
+                {
+                  "id": "threat-13",
+                  "title": "Session Hijacking",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Spoofing",
+                  "description": "Session cookies without Secure and HttpOnly flags",
+                  "mitigation": "Set Secure, HttpOnly, and SameSite flags on cookies",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 13,
+                  "score": ""
+                }
+              ]
+            },
+            "id": "flow-1",
+            "source": {
+              "x": 260,
+              "y": 140
+            },
+            "target": {
+              "x": 400,
+              "y": 140
+            }
+          },
+          {
+            "shape": "flow",
+            "attrs": {
+              "line": {
+                "stroke": "#333333",
+                "strokeWidth": 1,
+                "targetMarker": {
+                  "name": "block"
+                },
+                "strokeDasharray": null
+              }
+            },
+            "width": 200,
+            "height": 100,
+            "zIndex": 11,
+            "connector": "smooth",
+            "data": {
+              "type": "tm.Flow",
+              "name": "Database Query",
+              "description": "Application queries database",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "threats": []
+            },
+            "id": "flow-2",
+            "source": {
+              "x": 560,
+              "y": 140
+            },
+            "target": {
+              "x": 700,
+              "y": 140
+            }
+          },
+          {
+            "shape": "flow",
+            "attrs": {
+              "line": {
+                "stroke": "#333333",
+                "strokeWidth": 1,
+                "targetMarker": {
+                  "name": "block"
+                },
+                "strokeDasharray": null
+              }
+            },
+            "width": 200,
+            "height": 100,
+            "zIndex": 12,
+            "connector": "smooth",
+            "data": {
+              "type": "tm.Flow",
+              "name": "File Upload",
+              "description": "Application writes uploaded files",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "threats": []
+            },
+            "id": "flow-3",
+            "source": {
+              "x": 480,
+              "y": 180
+            },
+            "target": {
+              "x": 480,
+              "y": 300
+            }
+          }
+        ]
+      }
+    ],
+    "reviewer": "Security Team Lead"
+  }
+}

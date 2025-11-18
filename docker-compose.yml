@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+    environment:
+      - APACHE_RUN_USER=www-data
+      - APACHE_RUN_GROUP=www-data
+      - APACHE_LOG_DIR=/var/log/apache2
+      # VULNERABLE: Hardcoded credentials in environment
+      - DB_HOST=localhost
+      - DB_USER=admin
+      - DB_PASSWORD=admin123
+      - API_SECRET_KEY=hardcoded_secret_key_12345
+      - JWT_SECRET=my_secret_jwt_key
+    container_name: vulnerable-demo-app
