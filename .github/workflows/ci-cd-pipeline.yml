@@ -163,7 +163,10 @@ jobs:
           
           # Check if XAMPP installation exists
           if (-not (Test-Path "C:\xampp\htdocs")) {
-            Write-Host "⚠ XAMPP not found at C:\xampp. Skipping deployment."
+            Write-Host "ℹ XAMPP not found at C:\xampp"
+            Write-Host "ℹ Running on GitHub runner - deployment skipped"
+            Write-Host "✓ Artifact successfully created and uploaded to Nexus"
+            Write-Host "✓ Deploy locally by downloading artifact from Nexus"
             exit 0
           }
           
@@ -241,6 +244,17 @@ jobs:
       # Step 11: Verify Deployment
       - name: Verify Deployment
         run: |
+          Write-Host "Verifying build artifacts..."
+          
+          # Check if running on GitHub runner (no XAMPP)
+          if (-not (Test-Path "C:\xampp")) {
+            Write-Host "ℹ Running on GitHub runner - local deployment verification skipped"
+            Write-Host "✓ Build completed successfully"
+            Write-Host "✓ Artifact uploaded to GitHub Actions and Nexus"
+            Write-Host "✓ Next: Download artifact from Nexus and deploy to your local XAMPP"
+            exit 0
+          }
+          
           Write-Host "Waiting for Apache to stabilize..."
           Start-Sleep -Seconds 5
           
@@ -260,7 +274,7 @@ jobs:
             } catch {
               $attempt++
               if ($attempt -lt $maxAttempts) {
-                Write-Host "Attempt $attempt/$maxAttempts: Waiting for application to be ready..."
+                Write-Host "Attempt $($attempt)/$($maxAttempts): Waiting for application to be ready..."
                 Start-Sleep -Seconds 3
               }
             }
