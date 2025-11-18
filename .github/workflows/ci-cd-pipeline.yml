@@ -108,74 +108,56 @@ jobs:
           }
         shell: pwsh
 
-      - name: Deploy to XAMPP
+      - name: Deploy to IIS
         run: |
-          Write-Host "Deploying to XAMPP..."
+          Write-Host "Deploying to IIS..."
           
-          $xamppPath = "C:\xampp\htdocs\${{ env.APP_NAME }}"
+          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
           $zipFile = "${{ github.workspace }}\downloaded-artifact.zip"
           
           # Create or clean deployment directory
-          if (Test-Path $xamppPath) {
+          if (Test-Path $iisPath) {
             Write-Host "Cleaning existing deployment directory..."
-            Remove-Item -Path $xamppPath\* -Recurse -Force
+            Remove-Item -Path $iisPath\* -Recurse -Force
           } else {
             Write-Host "Creating deployment directory..."
-            New-Item -Path $xamppPath -ItemType Directory -Force | Out-Null
+            New-Item -Path $iisPath -ItemType Directory -Force | Out-Null
           }
           
-          # Extract ZIP to XAMPP
+          # Extract ZIP to IIS
           Write-Host "Extracting application files..."
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile, $xamppPath)
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile, $iisPath)
           
-          $fileCount = (Get-ChildItem -Path $xamppPath -Recurse -File).Count
-          Write-Host "✓ Deployed $fileCount files to XAMPP"
-          Write-Host "✓ Location: $xamppPath"
+          $fileCount = (Get-ChildItem -Path $iisPath -Recurse -File).Count
+          Write-Host "✓ Deployed $fileCount files to IIS"
+          Write-Host "✓ Location: $iisPath"
         shell: pwsh
 
-      - name: Restart Apache
+      - name: Restart IIS
         run: |
-          Write-Host "Restarting Apache service..."
-          
-          $apacheService = "Apache2.4"
+          Write-Host "Restarting IIS Application Pool..."
           
           try {
-            # Stop Apache
-            $service = Get-Service -Name $apacheService -ErrorAction SilentlyContinue
-            if ($service) {
-              if ($service.Status -eq 'Running') {
-                Stop-Service -Name $apacheService -Force
-                Write-Host "✓ Apache stopped"
-                Start-Sleep -Seconds 2
-              }
-              
-              # Start Apache
-              Start-Service -Name $apacheService
-              Start-Sleep -Seconds 3
-              
-              $service = Get-Service -Name $apacheService
-              if ($service.Status -eq 'Running') {
-                Write-Host "✓ Apache restarted successfully"
-              } else {
-                Write-Host "⚠ Apache service not running"
-              }
-            } else {
-              Write-Host "⚠ Apache service not found. Using XAMPP Control..."
-              
-              # Alternative: Use XAMPP control
-              $xamppControl = "C:\xampp\apache_stop.bat"
-              if (Test-Path $xamppControl) {
-                & $xamppControl
-                Start-Sleep -Seconds 3
-                & "C:\xampp\apache_start.bat"
-                Write-Host "✓ Apache restarted via XAMPP control"
-              } else {
-                Write-Host "✗ Cannot restart Apache - service not found"
-              }
+            # Restart the application pool (usually DefaultAppPool or specific pool)
+            Import-Module WebAdministration
+            
+            # Find the app pool for this application
+            $appPoolName = "DefaultAppPool"
+            
+            if (Get-WebAppPoolState -Name $appPoolName) {
+              Restart-WebAppPool -Name $appPoolName
+              Write-Host "✓ IIS Application Pool '$appPoolName' restarted"
+              Start-Sleep -Seconds 2
             }
+            
+            # Alternative: Reset IIS completely
+            Write-Host "Resetting IIS..."
+            iisreset /restart /noforce
+            Write-Host "✓ IIS restarted successfully"
+            
           } catch {
-            Write-Host "⚠ Warning: Apache restart encountered an issue - $($_.Exception.Message)"
+            Write-Host "⚠ Warning: IIS restart encountered an issue - $($_.Exception.Message)"
           }
         shell: pwsh
         continue-on-error: true
@@ -185,10 +167,10 @@ jobs:
           Write-Host "Verifying deployment..."
           
           $appUrl = "http://localhost/vulnerable-app/"
-          $xamppPath = "C:\xampp\htdocs\${{ env.APP_NAME }}"
+          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
           
           # Check files exist
-          if (Test-Path "$xamppPath\index.php") {
+          if (Test-Path "$iisPath\index.php") {
             Write-Host "✓ Application files deployed"
           } else {
             Write-Host "✗ index.php not found"
@@ -217,7 +199,7 @@ jobs:
           Write-Host ""
           Write-Host "Build #: ${{ github.run_number }}"
           Write-Host "Artifact: ${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
-          Write-Host "Deployed to: C:\xampp\htdocs\${{ env.APP_NAME }}"
+          Write-Host "Deployed to: C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
           Write-Host "Application URL: http://localhost/vulnerable-app/"
           Write-Host "Nexus URL: ${{ env.NEXUS_REPOSITORY_URL }}"
           Write-Host ""
