@@ -85,16 +85,144 @@ jobs:
         shell: pwsh
         continue-on-error: true
 
-      - name: Build Summary
+      - name: Download from Nexus
+        run: |
+          Write-Host "Downloading latest artifact from Nexus..."
+          
+          $groupPath = "${{ env.NEXUS_GROUP_ID }}".Replace(".", "/")
+          $nexusUrl = "${{ env.NEXUS_REPOSITORY_URL }}/$groupPath/${{ env.NEXUS_ARTIFACT_ID }}/${{ env.ARTIFACT_VERSION }}/${{ env.NEXUS_ARTIFACT_ID }}-${{ env.ARTIFACT_VERSION }}.zip"
+          $downloadPath = "${{ github.workspace }}\downloaded-artifact.zip"
+          
+          $base64Creds = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("${{ env.NEXUS_USERNAME }}:${{ env.NEXUS_PASSWORD }}"))
+          $headers = @{
+            "Authorization" = "Basic $base64Creds"
+          }
+          
+          try {
+            Invoke-WebRequest -Uri $nexusUrl -OutFile $downloadPath -Headers $headers -UseBasicParsing
+            $downloadSize = "{0:F2}" -f ((Get-Item $downloadPath).Length / 1MB)
+            Write-Host "✓ Downloaded from Nexus: $downloadSize MB"
+          } catch {
+            Write-Host "✗ Failed to download from Nexus: $($_.Exception.Message)"
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Deploy to XAMPP
+        run: |
+          Write-Host "Deploying to XAMPP..."
+          
+          $xamppPath = "C:\xampp\htdocs\${{ env.APP_NAME }}"
+          $zipFile = "${{ github.workspace }}\downloaded-artifact.zip"
+          
+          # Create or clean deployment directory
+          if (Test-Path $xamppPath) {
+            Write-Host "Cleaning existing deployment directory..."
+            Remove-Item -Path $xamppPath\* -Recurse -Force
+          } else {
+            Write-Host "Creating deployment directory..."
+            New-Item -Path $xamppPath -ItemType Directory -Force | Out-Null
+          }
+          
+          # Extract ZIP to XAMPP
+          Write-Host "Extracting application files..."
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile, $xamppPath)
+          
+          $fileCount = (Get-ChildItem -Path $xamppPath -Recurse -File).Count
+          Write-Host "✓ Deployed $fileCount files to XAMPP"
+          Write-Host "✓ Location: $xamppPath"
+        shell: pwsh
+
+      - name: Restart Apache
+        run: |
+          Write-Host "Restarting Apache service..."
+          
+          $apacheService = "Apache2.4"
+          
+          try {
+            # Stop Apache
+            $service = Get-Service -Name $apacheService -ErrorAction SilentlyContinue
+            if ($service) {
+              if ($service.Status -eq 'Running') {
+                Stop-Service -Name $apacheService -Force
+                Write-Host "✓ Apache stopped"
+                Start-Sleep -Seconds 2
+              }
+              
+              # Start Apache
+              Start-Service -Name $apacheService
+              Start-Sleep -Seconds 3
+              
+              $service = Get-Service -Name $apacheService
+              if ($service.Status -eq 'Running') {
+                Write-Host "✓ Apache restarted successfully"
+              } else {
+                Write-Host "⚠ Apache service not running"
+              }
+            } else {
+              Write-Host "⚠ Apache service not found. Using XAMPP Control..."
+              
+              # Alternative: Use XAMPP control
+              $xamppControl = "C:\xampp\apache_stop.bat"
+              if (Test-Path $xamppControl) {
+                & $xamppControl
+                Start-Sleep -Seconds 3
+                & "C:\xampp\apache_start.bat"
+                Write-Host "✓ Apache restarted via XAMPP control"
+              } else {
+                Write-Host "✗ Cannot restart Apache - service not found"
+              }
+            }
+          } catch {
+            Write-Host "⚠ Warning: Apache restart encountered an issue - $($_.Exception.Message)"
+          }
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Verify Deployment
+        run: |
+          Write-Host "Verifying deployment..."
+          
+          $appUrl = "http://localhost/vulnerable-app/"
+          $xamppPath = "C:\xampp\htdocs\${{ env.APP_NAME }}"
+          
+          # Check files exist
+          if (Test-Path "$xamppPath\index.php") {
+            Write-Host "✓ Application files deployed"
+          } else {
+            Write-Host "✗ index.php not found"
+          }
+          
+          # Try to access application
+          try {
+            Start-Sleep -Seconds 2
+            $response = Invoke-WebRequest -Uri $appUrl -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -eq 200) {
+              Write-Host "✓ Application is accessible at $appUrl"
+            }
+          } catch {
+            Write-Host "⚠ Application may not be accessible yet: $($_.Exception.Message)"
+            Write-Host "ℹ Check manually at: $appUrl"
+          }
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Deployment Summary
         run: |
           Write-Host ""
           Write-Host "========================================" -ForegroundColor Green
-          Write-Host "✓ Build Completed" -ForegroundColor Green
+          Write-Host "✓ Deployment Completed" -ForegroundColor Green
           Write-Host "========================================" -ForegroundColor Green
           Write-Host ""
           Write-Host "Build #: ${{ github.run_number }}"
           Write-Host "Artifact: ${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
-          Write-Host "GitHub: Actions → Artifacts"
-          Write-Host "Nexus: ${{ env.NEXUS_REPOSITORY_URL }}"
+          Write-Host "Deployed to: C:\xampp\htdocs\${{ env.APP_NAME }}"
+          Write-Host "Application URL: http://localhost/vulnerable-app/"
+          Write-Host "Nexus URL: ${{ env.NEXUS_REPOSITORY_URL }}"
+          Write-Host ""
+          Write-Host "Next Steps:"
+          Write-Host "1. Access app at http://localhost/vulnerable-app/"
+          Write-Host "2. View artifact in Nexus at http://127.0.0.1:8081/"
           Write-Host ""
         shell: pwsh
