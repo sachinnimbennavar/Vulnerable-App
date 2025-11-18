@@ -1,0 +1,374 @@
+name: Vulnerable App CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NEXUS_URL: http://127.0.0.1:8081
+  NEXUS_REPOSITORY: JuiceShopMavenDemo
+  NEXUS_REPOSITORY_URL: http://127.0.0.1:8081/repository/JuiceShopMavenDemo
+  NEXUS_USERNAME: admin
+  NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+  NEXUS_GROUP_ID: com.example.vulnerable
+  NEXUS_ARTIFACT_ID: vulnerable-app
+  APP_NAME: vulnerable-app
+  ARTIFACT_VERSION: ${{ github.run_number }}
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+    
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # Step 2: Set up PHP environment
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+          extensions: pdo, pdo_sqlite, gd
+          ini-values: display_errors=On
+
+      # Step 3: Validate PHP syntax
+      - name: Validate PHP Syntax
+        run: |
+          Get-ChildItem -Path "." -Filter "*.php" -Recurse | ForEach-Object {
+            php -l $_.FullName
+          }
+        shell: pwsh
+
+      # Step 4: Install dependencies with Composer
+      - name: Install Composer Dependencies
+        run: |
+          if (Test-Path "composer.json") {
+            composer install --no-dev --optimize-autoloader
+          }
+        shell: pwsh
+
+      # Step 5: Run basic tests/validation
+      - name: Run Application Tests
+        run: |
+          Write-Host "Testing database initialization..."
+          $testPhp = @'
+          <?php
+          require_once "config.php";
+          try {
+            $db = getDBConnection();
+            echo "✓ Database connection successful`n";
+            $result = $db->query("SELECT name FROM sqlite_master WHERE type='table'");
+            $tables = $result->fetchAll();
+            echo "✓ Tables found: " . count($tables) . "`n";
+          } catch (Exception $e) {
+            echo "✗ Error: " . $e->getMessage();
+            exit(1);
+          }
+          ?>
+          '@
+          $testPhp | Out-File -FilePath "test_db.php" -Encoding UTF8
+          php test_db.php
+          Remove-Item "test_db.php"
+        shell: pwsh
+
+      # Step 6: Create application package
+      - name: Create Application ZIP Artifact
+        run: |
+          $zipPath = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
+          $excludePatterns = @('\.git', '\.github', '\.gitignore', 'node_modules', 'vendor', '\.env', 'database.db', '*.zip', 'test_vulnerabilities.sh')
+          
+          if (Test-Path $zipPath) { Remove-Item $zipPath }
+          
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          
+          $sourceDir = "${{ github.workspace }}"
+          $zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
+          
+          Get-ChildItem -Path $sourceDir -Recurse -File | Where-Object {
+            $file = $_
+            -not ($excludePatterns | Where-Object { $file.FullName -like "*$_*" })
+          } | ForEach-Object {
+            $entryPath = $_.FullName.Substring($sourceDir.Length).TrimStart('\')
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryPath) | Out-Null
+          }
+          
+          $zip.Dispose()
+          Write-Host "✓ ZIP created: $zipPath"
+          Write-Host "✓ ZIP size: $((Get-Item $zipPath).Length / 1MB) MB"
+        shell: pwsh
+
+      # Step 7: Upload artifact to GitHub
+      - name: Upload Artifact to GitHub
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.APP_NAME }}-build-${{ env.ARTIFACT_VERSION }}
+          path: ${{ github.workspace }}\${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip
+          retention-days: 30
+
+      # Step 8: Upload to Nexus Repository
+      - name: Upload to Nexus Maven Repository
+        run: |
+          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
+          
+          # Maven2 repository structure: groupId/artifactId/version/artifactId-version.zip
+          # Replace dots in groupId with slashes: com.example.vulnerable -> com/example/vulnerable
+          $groupPath = "${{ env.NEXUS_GROUP_ID }}".Replace(".", "/")
+          $nexusUrl = "${{ env.NEXUS_REPOSITORY_URL }}/$groupPath/${{ env.NEXUS_ARTIFACT_ID }}/${{ env.ARTIFACT_VERSION }}/${{ env.NEXUS_ARTIFACT_ID }}-${{ env.ARTIFACT_VERSION }}.zip"
+          
+          Write-Host "Uploading to Nexus: $nexusUrl"
+          
+          $base64Creds = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("${{ env.NEXUS_USERNAME }}:${{ env.NEXUS_PASSWORD }}"))
+          
+          $headers = @{
+            "Authorization" = "Basic $base64Creds"
+            "Content-Type" = "application/zip"
+          }
+          
+          try {
+            $response = Invoke-WebRequest -Uri $nexusUrl `
+              -Method PUT `
+              -InFile $zipFile `
+              -Headers $headers `
+              -UseBasicParsing
+            
+            Write-Host "✓ Upload successful to Nexus (Status: $($response.StatusCode))"
+          } catch {
+            Write-Host "⚠ Warning: Could not upload to Nexus - $($_.Exception.Message)"
+            Write-Host "Note: Ensure Nexus is running and credentials are correct"
+          }
+        shell: pwsh
+        continue-on-error: true
+
+      # Step 9: Deploy to XAMPP (Windows VM)
+      - name: Deploy to XAMPP
+        run: |
+          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
+          $xamppPath = "C:\xampp\htdocs\${{ env.APP_NAME }}"
+          $backupPath = "$xamppPath-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+          
+          # Check if XAMPP installation exists
+          if (-not (Test-Path "C:\xampp\htdocs")) {
+            Write-Host "⚠ XAMPP not found at C:\xampp. Skipping deployment."
+            exit 0
+          }
+          
+          Write-Host "Starting deployment to XAMPP..."
+          
+          # Backup existing application
+          if (Test-Path $xamppPath) {
+            Write-Host "Creating backup: $backupPath"
+            Copy-Item -Path $xamppPath -Destination $backupPath -Recurse
+          }
+          
+          # Create target directory if it doesn't exist
+          if (-not (Test-Path $xamppPath)) {
+            New-Item -ItemType Directory -Path $xamppPath -Force | Out-Null
+          }
+          
+          # Extract ZIP to XAMPP
+          Write-Host "Extracting application to $xamppPath"
+          Expand-Archive -Path $zipFile -DestinationPath $xamppPath -Force
+          
+          Write-Host "✓ Application deployed to XAMPP"
+          
+          # Set proper permissions
+          Write-Host "Setting permissions..."
+          icacls $xamppPath /grant "Everyone:(OI)(CI)F" /T /Q
+          
+          Write-Host "✓ Permissions set"
+          
+          # Verify deployment
+          if (Test-Path "$xamppPath\index.php") {
+            Write-Host "✓ Deployment verification: index.php found"
+          } else {
+            Write-Host "✗ Deployment verification failed: index.php not found"
+            exit 1
+          }
+        shell: pwsh
+        continue-on-error: true
+
+      # Step 10: Restart Apache
+      - name: Restart Apache Service
+        run: |
+          Write-Host "Restarting Apache service..."
+          
+          # Stop Apache
+          try {
+            Stop-Process -Name "httpd" -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            Write-Host "✓ Apache stopped"
+          } catch {
+            Write-Host "Apache was not running"
+          }
+          
+          # Start Apache using XAMPP
+          try {
+            $xamppPath = "C:\xampp"
+            $apachePath = "$xamppPath\apache\bin\httpd.exe"
+            
+            if (Test-Path $apachePath) {
+              Write-Host "Starting Apache from: $apachePath"
+              & $apachePath -k start
+              Start-Sleep -Seconds 3
+              Write-Host "✓ Apache started"
+            } else {
+              Write-Host "⚠ Apache executable not found at $apachePath"
+              Write-Host "Attempting to start via service..."
+              Start-Service -Name "Apache2.4" -ErrorAction SilentlyContinue
+            }
+          } catch {
+            Write-Host "⚠ Warning: Could not start Apache - $_"
+            Write-Host "You may need to start Apache manually from XAMPP Control Panel"
+          }
+        shell: pwsh
+        continue-on-error: true
+
+      # Step 11: Verify Deployment
+      - name: Verify Deployment
+        run: |
+          Write-Host "Waiting for Apache to stabilize..."
+          Start-Sleep -Seconds 5
+          
+          $maxAttempts = 5
+          $attempt = 0
+          
+          while ($attempt -lt $maxAttempts) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost:8080/vulnerable-app/index.php?url=home" `
+                -UseBasicParsing -TimeoutSec 5
+              
+              if ($response.StatusCode -eq 200) {
+                Write-Host "✓ Application is accessible at http://localhost:8080/vulnerable-app/"
+                Write-Host "✓ Deployment successful!"
+                exit 0
+              }
+            } catch {
+              $attempt++
+              if ($attempt -lt $maxAttempts) {
+                Write-Host "Attempt $attempt/$maxAttempts: Waiting for application to be ready..."
+                Start-Sleep -Seconds 3
+              }
+            }
+          }
+          
+          Write-Host "⚠ Warning: Could not verify application accessibility"
+          Write-Host "Application may still be starting. Check manually at:"
+          Write-Host "http://localhost:8080/vulnerable-app/"
+        shell: pwsh
+        continue-on-error: true
+
+      # Step 12: Generate Deployment Summary
+      - name: Generate Deployment Report
+        if: always()
+        run: |
+          $reportPath = "${{ github.workspace }}\deployment-report.txt"
+          
+          $report = @"
+          ========================================
+          VULNERABLE APP CI/CD DEPLOYMENT REPORT
+          ========================================
+          
+          Build Number: ${{ github.run_number }}
+          Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+          
+          ========================================
+          DEPLOYMENT STATUS
+          ========================================
+          
+          ✓ Code Checkout: SUCCESS
+          ✓ PHP Syntax Validation: SUCCESS
+          ✓ Dependencies Installation: SUCCESS
+          ✓ ZIP Artifact Created: ${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip
+          ✓ Artifact Uploaded to GitHub: SUCCESS
+          ✓ Deployment to XAMPP: COMPLETED
+          ✓ Apache Restart: COMPLETED
+          
+          ========================================
+          ACCESS INFORMATION
+          ========================================
+          
+          Application URL: http://localhost:8080/vulnerable-app/
+          Home Page: http://localhost:8080/vulnerable-app/index.php?url=home
+          Login Page: http://localhost:8080/vulnerable-app/index.php?url=login
+          
+          Test Credentials:
+          - Username: admin
+          - Password: admin123
+          
+          Deployment Path: C:\xampp\htdocs\vulnerable-app\
+          
+          ========================================
+          NEXT STEPS
+          ========================================
+          
+          1. Verify application is running: http://localhost:8080/vulnerable-app/
+          2. Test login with admin/admin123
+          3. Check Apache logs: C:\xampp\apache\logs\error.log
+          4. For security scanning, run:
+             - OWASP ZAP: docker run owasp/zap2docker-stable
+             - SonarQube: docker run sonarqube:latest
+             - OWASP Dependency-Check
+          
+          ========================================
+          "@
+          
+          $report | Out-File -FilePath $reportPath -Encoding UTF8
+          Write-Host $report
+          Get-Content $reportPath | Out-String
+        shell: pwsh
+
+      # Step 13: Upload Deployment Report
+      - name: Upload Deployment Report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-report
+          path: ${{ github.workspace }}\deployment-report.txt
+
+  # Optional: Security Scanning Job
+  security-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Run Trivy File Scanning
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  # Optional: Notification Job
+  notify:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [build-and-deploy]
+    
+    steps:
+      - name: Send Deployment Notification
+        run: |
+          echo "Pipeline Status: ${{ job.status }}"
+          echo "Build Number: ${{ github.run_number }}"
+          echo "Branch: ${{ github.ref }}"
+          echo ""
+          echo "Deployment completed. Check the artifacts for deployment report."

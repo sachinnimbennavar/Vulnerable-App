@@ -1,7 +1,7 @@
 <?php
 // Main application entry point
-session_start();
 require_once 'config.php';
+session_start();
 
 // Initialize database
 $db = initDB();
