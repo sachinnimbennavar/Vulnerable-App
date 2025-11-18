@@ -16,9 +16,9 @@ env:
 
 jobs:
   build:
-    # For local Nexus uploads, change to: runs-on: self-hosted
+    # For local Nexus uploads, using: self-hosted runner
     # Setup: See .github/SELF_HOSTED_RUNNER_SETUP.md
-    runs-on: windows-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout Code
