@@ -1,0 +1,17 @@
+# Apache configuration for vulnerable demo app
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    
+    # Allow direct access to all files (VULNERABLE - exposes sensitive files)
+    # Options +Indexes
+    
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
+</IfModule>
+
+# Disable security headers (VULNERABLE)
+# Header unset X-Frame-Options
+# Header unset X-Content-Type-Options
+# Header unset X-XSS-Protection
