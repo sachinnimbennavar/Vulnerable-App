@@ -47,17 +47,17 @@ jobs:
             Write-Host "✓ SonarScanner installed" -ForegroundColor Green
           }
           
-          # Add to PATH
-          $env:PATH += ";$scannerPath\bin"
-          
           # Run SonarQube scan
-          & "$scannerPath\bin\sonar-scanner.bat" `
-            -Dsonar.projectKey=vulnerable-demo-app `
-            -Dsonar.sources=. `
-            -Dsonar.host.url=http://localhost:9000 `
-            -Dsonar.token=${{ secrets.SONAR_TOKEN }} `
-            -Dsonar.projectName="Vulnerable Demo Application" `
-            -Dsonar.projectVersion=${{ env.ARTIFACT_VERSION }}
+          $sonarArgs = @(
+            "-Dsonar.projectKey=vulnerable-demo-app",
+            "-Dsonar.sources=.",
+            "-Dsonar.host.url=http://localhost:9000",
+            "-Dsonar.token=${{ secrets.SONAR_TOKEN }}",
+            "-Dsonar.projectName=Vulnerable Demo Application",
+            "-Dsonar.projectVersion=${{ env.ARTIFACT_VERSION }}"
+          )
+          
+          & "$scannerPath\bin\sonar-scanner.bat" @sonarArgs
           
           Write-Host "✓ SonarQube analysis complete" -ForegroundColor Green
           Write-Host "View results: http://localhost:9000/dashboard?id=vulnerable-demo-app" -ForegroundColor Cyan
