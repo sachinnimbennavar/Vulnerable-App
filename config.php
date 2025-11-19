@@ -17,9 +17,11 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
 // Security Issue #4: Insecure session configuration
-ini_set('session.cookie_httponly', '0'); // VULNERABILITY: Missing HttpOnly flag
-ini_set('session.cookie_secure', '0'); // VULNERABILITY: Missing Secure flag
-ini_set('session.use_strict_mode', '0'); // VULNERABILITY: Weak session security
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', '0'); // VULNERABILITY: Missing HttpOnly flag
+    ini_set('session.cookie_secure', '0'); // VULNERABILITY: Missing Secure flag
+    ini_set('session.use_strict_mode', '0'); // VULNERABILITY: Weak session security
+}
 
 // Database connection function with no security
 function getDBConnection() {

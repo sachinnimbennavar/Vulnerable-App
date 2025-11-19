@@ -1,7 +1,14 @@
 <?php
 // Main application entry point
 require_once 'config.php';
-session_start();
+
+// Security Issue #4: Insecure session configuration
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', '0'); // VULNERABILITY: Missing HttpOnly flag
+    ini_set('session.cookie_secure', '0'); // VULNERABILITY: Missing Secure flag
+    ini_set('session.use_strict_mode', '0'); // VULNERABILITY: Weak session security
+    session_start();
+}
 
 // Initialize database
 $db = initDB();
