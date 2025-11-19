@@ -70,17 +70,16 @@ jobs:
           
           # Create SonarQube report summary
           $sonarReportFile = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.txt"
-          @"
-SonarQube Analysis Report
-=========================
-Build Number: ${{ github.run_number }}
-Project: Vulnerable Demo Application
-Version: ${{ env.ARTIFACT_VERSION }}
-Scan Date: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-Dashboard URL: http://localhost:9000/dashboard?id=vulnerable-demo-app
-
-Status: Analysis Complete
-"@ | Out-File -FilePath $sonarReportFile -Encoding UTF8
+          $reportContent = "SonarQube Analysis Report`n"
+          $reportContent += "=========================`n"
+          $reportContent += "Build Number: ${{ github.run_number }}`n"
+          $reportContent += "Project: Vulnerable Demo Application`n"
+          $reportContent += "Version: ${{ env.ARTIFACT_VERSION }}`n"
+          $reportContent += "Scan Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n"
+          $reportContent += "Dashboard URL: http://localhost:9000/dashboard?id=vulnerable-demo-app`n`n"
+          $reportContent += "Status: Analysis Complete"
+          
+          $reportContent | Out-File -FilePath $sonarReportFile -Encoding UTF8
           
           Write-Host "✓ SonarQube report saved: $sonarReportFile" -ForegroundColor Green
         shell: pwsh
@@ -265,59 +264,37 @@ Status: Analysis Complete
           
           Write-Host "Generating ZAP scan report..." -ForegroundColor Cyan
           
-          # Create HTML report
-          $htmlReport = @"
-<!DOCTYPE html>
-<html>
-<head>
-    <title>OWASP ZAP Security Scan Report</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        .header { background: #2c3e50; color: white; padding: 20px; border-radius: 5px; }
-        .section { background: white; margin: 20px 0; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .info { color: #3498db; }
-        .warning { color: #f39c12; }
-        .critical { color: #e74c3c; }
-        h1, h2 { margin: 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: #34495e; color: white; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>OWASP ZAP Security Scan Report</h1>
-        <p>Build #${{ github.run_number }} - $timestamp</p>
-    </div>
-    
-    <div class="section">
-        <h2>Scan Summary</h2>
-        <p><strong>Target URL:</strong> $targetUrl</p>
-        <p><strong>Scan Date:</strong> $timestamp</p>
-        <p><strong>Scan Type:</strong> Baseline Security Scan</p>
-        <p><strong>Status:</strong> Completed</p>
-    </div>
-    
-    <div class="section">
-        <h2>Scan Results</h2>
-        <p class="info">OWASP ZAP scan completed successfully for this vulnerable application demo.</p>
-        <p>This is a demonstration report. For detailed vulnerability analysis, access ZAP GUI or run full scan.</p>
-    </div>
-    
-    <div class="section">
-        <h2>Next Steps</h2>
-        <ul>
-            <li>Review detailed findings in ZAP GUI</li>
-            <li>Analyze vulnerabilities by severity</li>
-            <li>Implement security fixes</li>
-            <li>Re-scan after fixes</li>
-        </ul>
-    </div>
-</body>
-</html>
-"@
+          # Create HTML report content
+          $html = @()
+          $html += '<!DOCTYPE html>'
+          $html += '<html><head>'
+          $html += '<title>OWASP ZAP Security Scan Report</title>'
+          $html += '<style>'
+          $html += 'body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }'
+          $html += '.header { background: #2c3e50; color: white; padding: 20px; border-radius: 5px; }'
+          $html += '.section { background: white; margin: 20px 0; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }'
+          $html += 'h1, h2 { margin: 0; }'
+          $html += '</style></head><body>'
+          $html += '<div class="header">'
+          $html += "<h1>OWASP ZAP Security Scan Report</h1>"
+          $html += "<p>Build #${{ github.run_number }} - $timestamp</p>"
+          $html += '</div>'
+          $html += '<div class="section"><h2>Scan Summary</h2>'
+          $html += "<p><strong>Target URL:</strong> $targetUrl</p>"
+          $html += "<p><strong>Scan Date:</strong> $timestamp</p>"
+          $html += '<p><strong>Scan Type:</strong> Baseline Security Scan</p>'
+          $html += '<p><strong>Status:</strong> Completed</p></div>'
+          $html += '<div class="section"><h2>Scan Results</h2>'
+          $html += '<p>OWASP ZAP scan completed successfully for this vulnerable application demo.</p>'
+          $html += '<p>This is a demonstration report. For detailed vulnerability analysis, access ZAP GUI or run full scan.</p></div>'
+          $html += '<div class="section"><h2>Next Steps</h2><ul>'
+          $html += '<li>Review detailed findings in ZAP GUI</li>'
+          $html += '<li>Analyze vulnerabilities by severity</li>'
+          $html += '<li>Implement security fixes</li>'
+          $html += '<li>Re-scan after fixes</li></ul></div>'
+          $html += '</body></html>'
           
-          $htmlReport | Out-File -FilePath $reportPath -Encoding UTF8
+          $html -join "`n" | Out-File -FilePath $reportPath -Encoding UTF8
           
           # Create JSON report
           $jsonReport = @{
