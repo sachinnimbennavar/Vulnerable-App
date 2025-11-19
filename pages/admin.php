@@ -1,5 +1,10 @@
 <?php
 // VULNERABLE Admin Page
+
+session_start();
+require_once '../config.php';
+
+$db = getDBConnection();
 // Security Issue #17: Missing access control
 
 // VULNERABILITY: Weak authorization check

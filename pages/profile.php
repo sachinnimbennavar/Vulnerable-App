@@ -2,6 +2,11 @@
 // VULNERABLE Profile Page
 // Security Issue #16: IDOR vulnerability
 
+session_start();
+require_once '../config.php';
+
+$db = getDBConnection();
+
 $profile_id = isset($_GET['id']) ? $_GET['id'] : $_SESSION['user_id'];
 
 // VULNERABILITY: No authorization check - anyone can view any profile

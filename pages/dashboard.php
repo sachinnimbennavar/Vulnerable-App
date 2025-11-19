@@ -3,6 +3,11 @@
 // Security Issue #11: No authentication check
 // Security Issue #12: Insecure direct object reference (IDOR)
 
+session_start();
+require_once '../config.php';
+
+$db = getDBConnection();
+
 // VULNERABILITY: Missing authentication
 // Should check if user is logged in, but doesn't
 

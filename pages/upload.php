@@ -1,6 +1,11 @@
 <?php
 // VULNERABLE File Upload Handler
 // Security Issue #14: Unrestricted file upload
+
+session_start();
+require_once '../config.php';
+
+$db = getDBConnection();
 // Security Issue #15: Path traversal
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file'])) {

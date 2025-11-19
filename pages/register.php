@@ -2,6 +2,11 @@
 // VULNERABLE Registration Handler
 // Security Issue #10: No input validation
 
+session_start();
+require_once '../config.php';
+
+$db = getDBConnection();
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'];
     $password = $_POST['password'];

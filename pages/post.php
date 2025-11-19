@@ -2,6 +2,11 @@
 // VULNERABLE Post Handler
 // Security Issue #13: XSS via stored content
 
+session_start();
+require_once '../config.php';
+
+$db = getDBConnection();
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0;
     $title = $_POST['title'];
