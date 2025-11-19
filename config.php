@@ -25,7 +25,8 @@ ini_set('session.use_strict_mode', '0'); // VULNERABILITY: Weak session security
 function getDBConnection() {
     try {
         // VULNERABILITY: Using SQLite with no access controls
-        $db = new PDO('sqlite:./database.db');
+        $dbPath = __DIR__ . '/database.db';
+        $db = new PDO('sqlite:' . $dbPath);
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         return $db;
     } catch(PDOException $e) {
