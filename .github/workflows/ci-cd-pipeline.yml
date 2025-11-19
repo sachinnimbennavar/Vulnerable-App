@@ -33,7 +33,7 @@ jobs:
       - name: Create ZIP Artifact
         run: |
           $zipPath = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
-          $excludePatterns = @('\.git', '\.github', '\.gitignore', 'node_modules', 'vendor', 'database.db', '*.zip')
+          $excludePatterns = @('\.git', '\.github', '\.gitignore', 'node_modules', 'vendor', '*.zip')
           
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           
