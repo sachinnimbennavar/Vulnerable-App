@@ -63,25 +63,37 @@ jobs:
           Write-Host "View results: http://localhost:9000/dashboard?id=vulnerable-demo-app" -ForegroundColor Cyan
           
           # Save SonarQube report locally
+          Write-Host "Saving SonarQube report to desktop..." -ForegroundColor Cyan
           $localReportPath = "C:\Users\admin\Desktop\Reports\Pipeline Generated Reports"
-          if (-not (Test-Path $localReportPath)) {
-            New-Item -Path $localReportPath -ItemType Directory -Force | Out-Null
+          
+          try {
+            if (-not (Test-Path $localReportPath)) {
+              New-Item -Path $localReportPath -ItemType Directory -Force | Out-Null
+              Write-Host "Created directory: $localReportPath" -ForegroundColor Yellow
+            }
+            
+            # Create SonarQube report summary
+            $sonarReportFile = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.txt"
+            $reportContent = "SonarQube Analysis Report`n"
+            $reportContent += "=========================`n"
+            $reportContent += "Build Number: ${{ github.run_number }}`n"
+            $reportContent += "Project: Vulnerable Demo Application`n"
+            $reportContent += "Version: ${{ env.ARTIFACT_VERSION }}`n"
+            $reportContent += "Scan Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n"
+            $reportContent += "Dashboard URL: http://localhost:9000/dashboard?id=vulnerable-demo-app`n`n"
+            $reportContent += "Status: Analysis Complete"
+            
+            $reportContent | Out-File -FilePath $sonarReportFile -Encoding UTF8 -Force
+            
+            if (Test-Path $sonarReportFile) {
+              $fileSize = (Get-Item $sonarReportFile).Length
+              Write-Host "✓ SonarQube report saved: $sonarReportFile ($fileSize bytes)" -ForegroundColor Green
+            } else {
+              Write-Host "✗ Failed to create SonarQube report" -ForegroundColor Red
+            }
+          } catch {
+            Write-Host "Error saving SonarQube report: $($_.Exception.Message)" -ForegroundColor Red
           }
-          
-          # Create SonarQube report summary
-          $sonarReportFile = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.txt"
-          $reportContent = "SonarQube Analysis Report`n"
-          $reportContent += "=========================`n"
-          $reportContent += "Build Number: ${{ github.run_number }}`n"
-          $reportContent += "Project: Vulnerable Demo Application`n"
-          $reportContent += "Version: ${{ env.ARTIFACT_VERSION }}`n"
-          $reportContent += "Scan Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n"
-          $reportContent += "Dashboard URL: http://localhost:9000/dashboard?id=vulnerable-demo-app`n`n"
-          $reportContent += "Status: Analysis Complete"
-          
-          $reportContent | Out-File -FilePath $sonarReportFile -Encoding UTF8
-          
-          Write-Host "✓ SonarQube report saved: $sonarReportFile" -ForegroundColor Green
         shell: pwsh
         continue-on-error: true
 
@@ -314,23 +326,49 @@ jobs:
           
           Write-Host "✓ ZAP scan completed" -ForegroundColor Green
           
-          Write-Host "Report saved: $reportPath" -ForegroundColor Cyan
+          Write-Host "Reports generated in workspace" -ForegroundColor Cyan
           
           # Save ZAP reports locally to desktop
+          Write-Host "Copying ZAP reports to desktop..." -ForegroundColor Cyan
           $localReportPath = "C:\Users\admin\Desktop\Reports\Pipeline Generated Reports"
-          if (-not (Test-Path $localReportPath)) {
-            New-Item -Path $localReportPath -ItemType Directory -Force | Out-Null
-          }
           
-          # Copy reports to desktop with build number
-          if (Test-Path $reportPath) {
-            Copy-Item $reportPath -Destination "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.html" -Force
-            Write-Host "✓ ZAP HTML report saved: $localReportPath\ZAP-Report-Build-${{ github.run_number }}.html" -ForegroundColor Green
-          }
-          
-          if (Test-Path $jsonReportPath) {
-            Copy-Item $jsonReportPath -Destination "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.json" -Force
-            Write-Host "✓ ZAP JSON report saved: $localReportPath\ZAP-Report-Build-${{ github.run_number }}.json" -ForegroundColor Green
+          try {
+            if (-not (Test-Path $localReportPath)) {
+              New-Item -Path $localReportPath -ItemType Directory -Force | Out-Null
+              Write-Host "Created directory: $localReportPath" -ForegroundColor Yellow
+            }
+            
+            # Copy HTML report
+            if (Test-Path $reportPath) {
+              $destHtml = "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.html"
+              Copy-Item $reportPath -Destination $destHtml -Force -ErrorAction Stop
+              
+              if (Test-Path $destHtml) {
+                $fileSize = (Get-Item $destHtml).Length
+                Write-Host "✓ ZAP HTML report saved: $destHtml ($fileSize bytes)" -ForegroundColor Green
+              } else {
+                Write-Host "✗ Failed to copy HTML report" -ForegroundColor Red
+              }
+            } else {
+              Write-Host "✗ Source HTML report not found: $reportPath" -ForegroundColor Red
+            }
+            
+            # Copy JSON report
+            if (Test-Path $jsonReportPath) {
+              $destJson = "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.json"
+              Copy-Item $jsonReportPath -Destination $destJson -Force -ErrorAction Stop
+              
+              if (Test-Path $destJson) {
+                $fileSize = (Get-Item $destJson).Length
+                Write-Host "✓ ZAP JSON report saved: $destJson ($fileSize bytes)" -ForegroundColor Green
+              } else {
+                Write-Host "✗ Failed to copy JSON report" -ForegroundColor Red
+              }
+            } else {
+              Write-Host "✗ Source JSON report not found: $jsonReportPath" -ForegroundColor Red
+            }
+          } catch {
+            Write-Host "Error copying ZAP reports: $($_.Exception.Message)" -ForegroundColor Red
           }
           
           Write-Host ""
