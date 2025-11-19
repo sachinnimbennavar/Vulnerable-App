@@ -61,6 +61,28 @@ jobs:
           
           Write-Host "✓ SonarQube analysis complete" -ForegroundColor Green
           Write-Host "View results: http://localhost:9000/dashboard?id=vulnerable-demo-app" -ForegroundColor Cyan
+          
+          # Save SonarQube report locally
+          $localReportPath = "C:\Users\admin\Desktop\Reports\Pipeline Generated Reports"
+          if (-not (Test-Path $localReportPath)) {
+            New-Item -Path $localReportPath -ItemType Directory -Force | Out-Null
+          }
+          
+          # Create SonarQube report summary
+          $sonarReportFile = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.txt"
+          @"
+SonarQube Analysis Report
+=========================
+Build Number: ${{ github.run_number }}
+Project: Vulnerable Demo Application
+Version: ${{ env.ARTIFACT_VERSION }}
+Scan Date: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+Dashboard URL: http://localhost:9000/dashboard?id=vulnerable-demo-app
+
+Status: Analysis Complete
+"@ | Out-File -FilePath $sonarReportFile -Encoding UTF8
+          
+          Write-Host "✓ SonarQube report saved: $sonarReportFile" -ForegroundColor Green
         shell: pwsh
         continue-on-error: true
 
@@ -286,6 +308,24 @@ jobs:
           }
           
           Write-Host "Report saved: $reportPath" -ForegroundColor Cyan
+          
+          # Save ZAP reports locally to desktop
+          $localReportPath = "C:\Users\admin\Desktop\Reports\Pipeline Generated Reports"
+          if (-not (Test-Path $localReportPath)) {
+            New-Item -Path $localReportPath -ItemType Directory -Force | Out-Null
+          }
+          
+          # Copy reports to desktop with build number
+          if (Test-Path $reportPath) {
+            Copy-Item $reportPath -Destination "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.html" -Force
+            Write-Host "✓ ZAP HTML report saved: $localReportPath\ZAP-Report-Build-${{ github.run_number }}.html" -ForegroundColor Green
+          }
+          
+          if (Test-Path $jsonReportPath) {
+            Copy-Item $jsonReportPath -Destination "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.json" -Force
+            Write-Host "✓ ZAP JSON report saved: $localReportPath\ZAP-Report-Build-${{ github.run_number }}.json" -ForegroundColor Green
+          }
+          
           Write-Host ""
         shell: pwsh
         continue-on-error: true
