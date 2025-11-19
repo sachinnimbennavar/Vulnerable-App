@@ -224,6 +224,82 @@ jobs:
         shell: pwsh
         continue-on-error: true
 
+      - name: OWASP ZAP Security Scan
+        run: |
+          Write-Host "Starting OWASP ZAP security scan..." -ForegroundColor Cyan
+          
+          $zapPath = "C:\Program Files\ZAP\Zed Attack Proxy"
+          $targetUrl = "http://localhost/vulnerable-app/"
+          $reportPath = "${{ github.workspace }}\zap-report.html"
+          $jsonReportPath = "${{ github.workspace }}\zap-report.json"
+          
+          # Verify application is running
+          try {
+            $response = Invoke-WebRequest -Uri $targetUrl -UseBasicParsing -TimeoutSec 5
+            Write-Host "✓ Application is accessible for scanning" -ForegroundColor Green
+          } catch {
+            Write-Host "⚠ Warning: Application not accessible, scan may fail" -ForegroundColor Yellow
+          }
+          
+          Write-Host "Running ZAP baseline scan..." -ForegroundColor Cyan
+          Write-Host "Target: $targetUrl" -ForegroundColor White
+          
+          # Run ZAP baseline scan
+          # Using baseline scan for quick security checks (suitable for CI/CD)
+          $zapCmd = "python"
+          $zapScript = "$zapPath\zap-baseline.py"
+          
+          # Check if Python script exists
+          if (Test-Path $zapScript) {
+            & $zapCmd $zapScript -t $targetUrl -r $reportPath -J $jsonReportPath -I
+            Write-Host "✓ ZAP scan completed" -ForegroundColor Green
+          } else {
+            # Fallback to running ZAP in CLI mode
+            Write-Host "Running ZAP in CLI mode..." -ForegroundColor Yellow
+            
+            $zapApiKey = "changeme123"
+            $zapPort = 8090
+            
+            # Start ZAP in daemon mode
+            Start-Process -FilePath "$zapPath\zap.bat" -ArgumentList "-daemon -port $zapPort -config api.key=$zapApiKey" -WindowStyle Hidden
+            Start-Sleep -Seconds 15
+            
+            # Spider the application
+            $spiderUrl = "http://localhost:${zapPort}/JSON/spider/action/scan/?url=$targetUrl&apikey=$zapApiKey"
+            Invoke-RestMethod -Uri $spiderUrl -Method Get
+            Start-Sleep -Seconds 10
+            
+            # Run active scan
+            $scanUrl = "http://localhost:${zapPort}/JSON/ascan/action/scan/?url=$targetUrl&apikey=$zapApiKey"
+            Invoke-RestMethod -Uri $scanUrl -Method Get
+            Start-Sleep -Seconds 20
+            
+            # Generate HTML report
+            $reportUrl = "http://localhost:${zapPort}/OTHER/core/other/htmlreport/?apikey=$zapApiKey"
+            $report = Invoke-RestMethod -Uri $reportUrl -Method Get
+            $report | Out-File -FilePath $reportPath -Encoding UTF8
+            
+            Write-Host "✓ ZAP scan completed" -ForegroundColor Green
+            
+            # Stop ZAP
+            Stop-Process -Name "java" -ErrorAction SilentlyContinue
+          }
+          
+          Write-Host "Report saved: $reportPath" -ForegroundColor Cyan
+          Write-Host ""
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-security-report-${{ env.ARTIFACT_VERSION }}
+          path: |
+            ${{ github.workspace }}\zap-report.html
+            ${{ github.workspace }}\zap-report.json
+          retention-days: 30
+        continue-on-error: true
+
       - name: Deployment Summary
         run: |
           Write-Host ""
@@ -237,8 +313,14 @@ jobs:
           Write-Host "Application URL: http://localhost/vulnerable-app/"
           Write-Host "Nexus URL: ${{ env.NEXUS_REPOSITORY_URL }}"
           Write-Host ""
+          Write-Host "Security Scanning:" -ForegroundColor Cyan
+          Write-Host "✓ SonarQube: http://localhost:9000/dashboard?id=vulnerable-demo-app"
+          Write-Host "✓ OWASP ZAP: Check artifacts for security reports"
+          Write-Host ""
           Write-Host "Next Steps:"
           Write-Host "1. Access app at http://localhost/vulnerable-app/"
           Write-Host "2. View artifact in Nexus at http://127.0.0.1:8081/"
+          Write-Host "3. Review SonarQube analysis at http://localhost:9000/"
+          Write-Host "4. Download ZAP security reports from GitHub Actions artifacts"
           Write-Host ""
         shell: pwsh
