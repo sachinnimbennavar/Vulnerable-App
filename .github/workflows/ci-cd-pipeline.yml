@@ -396,12 +396,37 @@ jobs:
           $zapPort = 8090
           
           # Kill any existing ZAP processes
+          Write-Host "Cleaning up any existing ZAP processes..." -ForegroundColor Yellow
           Stop-Process -Name "java" -Force -ErrorAction SilentlyContinue
-          Start-Sleep -Seconds 2
+          Start-Sleep -Seconds 3
           
-          # Start ZAP in daemon mode
+          # Verify port is free
+          $portTest = Test-NetConnection -ComputerName localhost -Port $zapPort -WarningAction SilentlyContinue -InformationLevel Quiet
+          if ($portTest) {
+            Write-Host "⚠ Port $zapPort is already in use, attempting to free it..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 5
+          }
+          
+          # Start ZAP in daemon mode with minimal security (for CI/CD)
           Write-Host "Starting ZAP daemon (this may take 2-3 minutes)..." -ForegroundColor Yellow
-          $zapProcess = Start-Process -FilePath "$zapPath\zap.bat" -ArgumentList "-daemon","-port",$zapPort,"-config","api.key=$zapApiKey","-config","api.addrs.addr.name=.*","-config","api.addrs.addr.regex=true" -PassThru -WindowStyle Hidden
+          $zapArgs = @(
+            "-daemon",
+            "-host", "127.0.0.1",
+            "-port", $zapPort,
+            "-config", "api.key=$zapApiKey",
+            "-config", "api.disablekey=false",
+            "-config", "api.addrs.addr.name=.*",
+            "-config", "api.addrs.addr.regex=true"
+          )
+          
+          Write-Host "ZAP command: $zapPath\zap.bat $($zapArgs -join ' ')" -ForegroundColor Gray
+          $zapProcess = Start-Process -FilePath "$zapPath\zap.bat" -ArgumentList $zapArgs -PassThru -WindowStyle Hidden
+          
+          if ($zapProcess) {
+            Write-Host "ZAP process started with PID: $($zapProcess.Id)" -ForegroundColor Cyan
+          } else {
+            throw "Failed to start ZAP process"
+          }
           
           # Wait for ZAP to be ready (up to 180 seconds / 3 minutes)
           $maxWait = 180
@@ -429,6 +454,12 @@ jobs:
             $javaProc = Get-Process -Name "java" -ErrorAction SilentlyContinue
             if ($javaProc) {
               Write-Host "Java process found (PID: $($javaProc.Id)), but ZAP API not responding" -ForegroundColor Yellow
+              Write-Host "Checking ZAP log file..." -ForegroundColor Yellow
+              $zapLogPath = "$env:USERPROFILE\.ZAP\zap.log"
+              if (Test-Path $zapLogPath) {
+                Write-Host "Last 20 lines of ZAP log:" -ForegroundColor Cyan
+                Get-Content $zapLogPath -Tail 20 | ForEach-Object { Write-Host $_ }
+              }
             } else {
               Write-Host "No Java process found - ZAP failed to launch" -ForegroundColor Red
             }
