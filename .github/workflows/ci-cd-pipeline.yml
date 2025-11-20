@@ -815,6 +815,25 @@ jobs:
             Write-Host "Waiting for Black Duck to process scan (30 seconds)..." -ForegroundColor Yellow
             Start-Sleep -Seconds 30
             
+            # Bypass SSL certificate validation for self-signed certs (must be set before API calls)
+            try {
+              Add-Type @"
+                using System.Net;
+                using System.Net.Security;
+                using System.Security.Cryptography.X509Certificates;
+                public class TrustAllCertsPolicy {
+                  public static bool ValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) {
+                    return true;
+                  }
+                }
+"@
+              [System.Net.ServicePointManager]::ServerCertificateValidationCallback = [TrustAllCertsPolicy]::ValidationCallback
+            } catch {
+              Write-Host "Note: Certificate validation callback already set" -ForegroundColor Gray
+            }
+            
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 -bor [System.Net.SecurityProtocolType]::Tls11 -bor [System.Net.SecurityProtocolType]::Tls
+            
             # Set up API authentication
             $headers = @{
               "Authorization" = "Bearer $bdToken"
@@ -822,15 +841,12 @@ jobs:
               "Content-Type" = "application/json"
             }
             
-            # Bypass SSL certificate validation for self-signed certs
-            [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
-            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-            
             # Get project version URL
             Write-Host "Retrieving project information..." -ForegroundColor Cyan
             $projectSearchUrl = "$bdUrl/api/projects?q=name:$projectName"
             
             try {
+              Write-Host "API URL: $projectSearchUrl" -ForegroundColor Gray
               $projectResponse = Invoke-RestMethod -Uri $projectSearchUrl -Headers $headers -Method Get
               
               if ($projectResponse.items -and $projectResponse.items.Count -gt 0) {
@@ -998,7 +1014,11 @@ jobs:
                 Write-Host "⚠ Project not found on server yet - scan may still be processing" -ForegroundColor Yellow
               }
             } catch {
-              Write-Host "⚠ Could not download reports from Black Duck API: $($_.Exception.Message)" -ForegroundColor Yellow
+              Write-Host "⚠ Could not download reports from Black Duck API" -ForegroundColor Yellow
+              Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+              if ($_.Exception.InnerException) {
+                Write-Host "Inner Error: $($_.Exception.InnerException.Message)" -ForegroundColor Yellow
+              }
               Write-Host "Scan data uploaded to server successfully - view at: $bdUrl" -ForegroundColor Cyan
             }
             
