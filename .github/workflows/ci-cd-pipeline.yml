@@ -62,19 +62,173 @@ jobs:
           Write-Host "✓ SonarQube analysis complete" -ForegroundColor Green
           Write-Host "View results: http://localhost:9000/dashboard?id=vulnerable-demo-app" -ForegroundColor Cyan
           
-          # Save SonarQube report locally
-          Write-Host "Saving SonarQube report..." -ForegroundColor Cyan
+          # Download detailed SonarQube report
+          Write-Host "Downloading SonarQube detailed report..." -ForegroundColor Cyan
           $localReportPath = "C:\Reports\Pipeline-Reports"
           
           try {
             if (-not (Test-Path $localReportPath)) {
               New-Item -Path $localReportPath -ItemType Directory -Force | Out-Null
-              # Grant permissions to runner service
               icacls $localReportPath /grant "NT AUTHORITY\NETWORK SERVICE:(OI)(CI)F" /T | Out-Null
               Write-Host "Created directory: $localReportPath" -ForegroundColor Yellow
             }
             
-            # Create SonarQube report summary
+            # Wait for SonarQube to process results
+            Write-Host "Waiting for SonarQube to process results..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 10
+            
+            # Get detailed issues from SonarQube API
+            $sonarUrl = "http://localhost:9000"
+            $projectKey = "vulnerable-demo-app"
+            $token = "${{ secrets.SONAR_TOKEN }}"
+            $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${token}:"))
+            $headers = @{ Authorization = "Basic $auth" }
+            
+            # Get all issues
+            $issuesUrl = "${sonarUrl}/api/issues/search?componentKeys=${projectKey}&ps=500"
+            $issues = Invoke-RestMethod -Uri $issuesUrl -Headers $headers -Method Get
+            
+            # Get metrics
+            $metricsUrl = "${sonarUrl}/api/measures/component?component=${projectKey}&metricKeys=bugs,vulnerabilities,code_smells,security_hotspots,coverage,duplicated_lines_density"
+            $metrics = Invoke-RestMethod -Uri $metricsUrl -Headers $headers -Method Get
+            
+            # Create detailed HTML report
+            $htmlReport = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.html"
+            $html = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SonarQube Analysis Report - Build ${{ github.run_number }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .header { background: #3498db; color: white; padding: 20px; border-radius: 5px; }
+        .metrics { display: flex; gap: 15px; margin: 20px 0; flex-wrap: wrap; }
+        .metric-box { background: white; padding: 15px; border-radius: 5px; min-width: 150px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .metric-value { font-size: 32px; font-weight: bold; }
+        .bugs { color: #e74c3c; }
+        .vulnerabilities { color: #e67e22; }
+        .code-smells { color: #f39c12; }
+        .hotspots { color: #9b59b6; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #34495e; color: white; }
+        .severity-BLOCKER { background: #c0392b; color: white; padding: 5px 10px; border-radius: 3px; }
+        .severity-CRITICAL { background: #e74c3c; color: white; padding: 5px 10px; border-radius: 3px; }
+        .severity-MAJOR { background: #e67e22; color: white; padding: 5px 10px; border-radius: 3px; }
+        .severity-MINOR { background: #f39c12; color: white; padding: 5px 10px; border-radius: 3px; }
+        .severity-INFO { background: #3498db; color: white; padding: 5px 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SonarQube Security Analysis Report</h1>
+        <p>Build #${{ github.run_number }} - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</p>
+        <p>Project: Vulnerable Demo Application</p>
+    </div>
+    
+    <div class="metrics">
+"@
+            
+            foreach ($measure in $metrics.component.measures) {
+              $metricName = $measure.metric
+              $value = $measure.value
+              $cssClass = $metricName
+              $html += "<div class='metric-box'><div class='metric-value $cssClass'>$value</div><div>$metricName</div></div>`n"
+            }
+            
+            $html += @"
+    </div>
+    
+    <h2>Issues Found: $($issues.total)</h2>
+    <table>
+        <tr>
+            <th>Severity</th>
+            <th>Type</th>
+            <th>Message</th>
+            <th>File</th>
+            <th>Line</th>
+        </tr>
+"@
+            
+            foreach ($issue in $issues.issues) {
+              $severity = $issue.severity
+              $type = $issue.type
+              $message = $issue.message -replace '<', '&lt;' -replace '>', '&gt;'
+              $component = $issue.component -replace '.*:', ''
+              $line = if ($issue.line) { $issue.line } else { 'N/A' }
+              
+              $html += "<tr>"
+              $html += "<td><span class='severity-$severity'>$severity</span></td>"
+              $html += "<td>$type</td>"
+              $html += "<td>$message</td>"
+              $html += "<td>$component</td>"
+              $html += "<td>$line</td>"
+              $html += "</tr>`n"
+            }
+            
+            $html += @"
+    </table>
+    
+    <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 5px;">
+        <h3>Dashboard Link</h3>
+        <p><a href="http://localhost:9000/dashboard?id=vulnerable-demo-app" target="_blank">View in SonarQube Dashboard</a></p>
+    </div>
+</body>
+</html>
+"@
+            
+            $html | Out-File -FilePath $htmlReport -Encoding UTF8 -Force
+            
+            # Create JSON report
+            $jsonReport = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.json"
+            @{
+              build_number = "${{ github.run_number }}"
+              project = "Vulnerable Demo Application"
+              scan_date = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+              metrics = $metrics.component.measures
+              issues = $issues.issues
+              total_issues = $issues.total
+            } | ConvertTo-Json -Depth 10 | Out-File -FilePath $jsonReport -Encoding UTF8 -Force
+            
+            # Create text summary
+            $txtReport = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.txt"
+            $summary = @"
+SonarQube Analysis Report
+=========================
+Build Number: ${{ github.run_number }}
+Project: Vulnerable Demo Application
+Version: ${{ env.ARTIFACT_VERSION }}
+Scan Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+Dashboard: http://localhost:9000/dashboard?id=vulnerable-demo-app
+
+Metrics:
+--------
+"@
+            foreach ($measure in $metrics.component.measures) {
+              $summary += "$($measure.metric): $($measure.value)`n"
+            }
+            
+            $summary += "`nTotal Issues: $($issues.total)`n"
+            $summary += "`nIssues by Severity:`n"
+            $summary += "-------------------`n"
+            
+            $severityGroups = $issues.issues | Group-Object severity
+            foreach ($group in $severityGroups) {
+              $summary += "$($group.Name): $($group.Count)`n"
+            }
+            
+            $summary | Out-File -FilePath $txtReport -Encoding UTF8 -Force
+            
+            Write-Host "✓ SonarQube HTML report: $htmlReport" -ForegroundColor Green
+            Write-Host "✓ SonarQube JSON report: $jsonReport" -ForegroundColor Green  
+            Write-Host "✓ SonarQube TXT report: $txtReport" -ForegroundColor Green
+            Write-Host "Total issues found: $($issues.total)" -ForegroundColor Cyan
+            
+          } catch {
+            Write-Host "Error downloading SonarQube report: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "Creating basic summary..." -ForegroundColor Yellow
+            
+            # Fallback to basic report
             $sonarReportFile = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.txt"
             $reportContent = "SonarQube Analysis Report`n"
             $reportContent += "=========================`n"
@@ -83,18 +237,8 @@ jobs:
             $reportContent += "Version: ${{ env.ARTIFACT_VERSION }}`n"
             $reportContent += "Scan Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n"
             $reportContent += "Dashboard URL: http://localhost:9000/dashboard?id=vulnerable-demo-app`n`n"
-            $reportContent += "Status: Analysis Complete"
-            
+            $reportContent += "Status: Analysis Complete (API report failed, view dashboard for details)"
             $reportContent | Out-File -FilePath $sonarReportFile -Encoding UTF8 -Force
-            
-            if (Test-Path $sonarReportFile) {
-              $fileSize = (Get-Item $sonarReportFile).Length
-              Write-Host "✓ SonarQube report saved: $sonarReportFile ($fileSize bytes)" -ForegroundColor Green
-            } else {
-              Write-Host "✗ Failed to create SonarQube report" -ForegroundColor Red
-            }
-          } catch {
-            Write-Host "Error saving SonarQube report: $($_.Exception.Message)" -ForegroundColor Red
           }
         shell: pwsh
         continue-on-error: true
@@ -263,61 +407,106 @@ jobs:
         run: |
           Write-Host "Starting OWASP ZAP security scan..." -ForegroundColor Cyan
           
+          $zapPath = "C:\Program Files\ZAP\Zed Attack Proxy"
           $targetUrl = "http://localhost/vulnerable-app/"
           $reportPath = "${{ github.workspace }}\zap-report.html"
           $jsonReportPath = "${{ github.workspace }}\zap-report.json"
-          $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+          $xmlReportPath = "${{ github.workspace }}\zap-report.xml"
           
           # Verify application is running
           try {
             $response = Invoke-WebRequest -Uri $targetUrl -UseBasicParsing -TimeoutSec 5
             Write-Host "✓ Application is accessible for scanning" -ForegroundColor Green
           } catch {
-            Write-Host "⚠ Warning: Application not accessible, creating summary report" -ForegroundColor Yellow
+            Write-Host "✗ Application not accessible, cannot scan" -ForegroundColor Red
+            exit 0
           }
           
-          Write-Host "Generating ZAP scan report..." -ForegroundColor Cyan
+          Write-Host "Running ZAP active scan..." -ForegroundColor Cyan
+          Write-Host "Target: $targetUrl" -ForegroundColor White
           
-          # Create HTML report content
-          $html = @()
-          $html += '<!DOCTYPE html>'
-          $html += '<html><head>'
-          $html += '<title>OWASP ZAP Security Scan Report</title>'
-          $html += '<style>'
-          $html += 'body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }'
-          $html += '.header { background: #2c3e50; color: white; padding: 20px; border-radius: 5px; }'
-          $html += '.section { background: white; margin: 20px 0; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }'
-          $html += 'h1, h2 { margin: 0; }'
-          $html += '</style></head><body>'
-          $html += '<div class="header">'
-          $html += "<h1>OWASP ZAP Security Scan Report</h1>"
-          $html += "<p>Build #${{ github.run_number }} - $timestamp</p>"
-          $html += '</div>'
-          $html += '<div class="section"><h2>Scan Summary</h2>'
-          $html += "<p><strong>Target URL:</strong> $targetUrl</p>"
-          $html += "<p><strong>Scan Date:</strong> $timestamp</p>"
-          $html += '<p><strong>Scan Type:</strong> Baseline Security Scan</p>'
-          $html += '<p><strong>Status:</strong> Completed</p></div>'
-          $html += '<div class="section"><h2>Scan Results</h2>'
-          $html += '<p>OWASP ZAP scan completed successfully for this vulnerable application demo.</p>'
-          $html += '<p>This is a demonstration report. For detailed vulnerability analysis, access ZAP GUI or run full scan.</p></div>'
-          $html += '<div class="section"><h2>Next Steps</h2><ul>'
-          $html += '<li>Review detailed findings in ZAP GUI</li>'
-          $html += '<li>Analyze vulnerabilities by severity</li>'
-          $html += '<li>Implement security fixes</li>'
-          $html += '<li>Re-scan after fixes</li></ul></div>'
-          $html += '</body></html>'
+          # ZAP Configuration
+          $zapApiKey = "zap-api-key-12345"
+          $zapPort = 8090
           
-          $html -join "`n" | Out-File -FilePath $reportPath -Encoding UTF8
+          # Start ZAP in daemon mode
+          Write-Host "Starting ZAP daemon..." -ForegroundColor Yellow
+          $zapProcess = Start-Process -FilePath "$zapPath\zap.bat" -ArgumentList "-daemon","-port",$zapPort,"-config","api.key=$zapApiKey","-config","api.addrs.addr.name=.*","-config","api.addrs.addr.regex=true" -PassThru -WindowStyle Hidden
           
-          # Create JSON report
-          $jsonReport = @{
-            scan_info = @{
-                build_number = "${{ github.run_number }}"
-                target_url = $targetUrl
-                scan_date = $timestamp
-                scan_type = "Baseline"
-                status = "Completed"
+          Start-Sleep -Seconds 20
+          Write-Host "✓ ZAP daemon started" -ForegroundColor Green
+          
+          try {
+            $baseUrl = "http://localhost:${zapPort}"
+            
+            # Spider the application
+            Write-Host "Spidering application..." -ForegroundColor Yellow
+            $spiderUrl = "${baseUrl}/JSON/spider/action/scan/?url=${targetUrl}&apikey=${zapApiKey}"
+            $spiderResult = Invoke-RestMethod -Uri $spiderUrl -Method Get
+            $spiderId = $spiderResult.scan
+            
+            # Wait for spider to complete
+            do {
+              Start-Sleep -Seconds 2
+              $statusUrl = "${baseUrl}/JSON/spider/view/status/?scanId=${spiderId}&apikey=${zapApiKey}"
+              $status = Invoke-RestMethod -Uri $statusUrl -Method Get
+              Write-Host "Spider progress: $($status.status)%" -ForegroundColor Cyan
+            } while ($status.status -lt 100)
+            
+            Write-Host "✓ Spidering complete" -ForegroundColor Green
+            
+            # Run active scan
+            Write-Host "Running active security scan..." -ForegroundColor Yellow
+            $scanUrl = "${baseUrl}/JSON/ascan/action/scan/?url=${targetUrl}&apikey=${zapApiKey}"
+            $scanResult = Invoke-RestMethod -Uri $scanUrl -Method Get
+            $scanId = $scanResult.scan
+            
+            # Wait for active scan to complete
+            do {
+              Start-Sleep -Seconds 5
+              $statusUrl = "${baseUrl}/JSON/ascan/view/status/?scanId=${scanId}&apikey=${zapApiKey}"
+              $status = Invoke-RestMethod -Uri $statusUrl -Method Get
+              Write-Host "Scan progress: $($status.status)%" -ForegroundColor Cyan
+            } while ($status.status -lt 100)
+            
+            Write-Host "✓ Active scan complete" -ForegroundColor Green
+            
+            # Generate HTML report
+            Write-Host "Generating reports..." -ForegroundColor Yellow
+            $reportUrl = "${baseUrl}/OTHER/core/other/htmlreport/?apikey=${zapApiKey}"
+            Invoke-RestMethod -Uri $reportUrl -Method Get -OutFile $reportPath
+            
+            # Generate JSON report
+            $jsonUrl = "${baseUrl}/JSON/core/view/alerts/?apikey=${zapApiKey}"
+            $alerts = Invoke-RestMethod -Uri $jsonUrl -Method Get
+            $alerts | ConvertTo-Json -Depth 10 | Out-File -FilePath $jsonReportPath -Encoding UTF8
+            
+            # Generate XML report
+            $xmlUrl = "${baseUrl}/OTHER/core/other/xmlreport/?apikey=${zapApiKey}"
+            Invoke-RestMethod -Uri $xmlUrl -Method Get -OutFile $xmlReportPath
+            
+            Write-Host "✓ Reports generated" -ForegroundColor Green
+            
+            # Get summary
+            $alertsUrl = "${baseUrl}/JSON/core/view/numberOfAlerts/?apikey=${zapApiKey}"
+            $alertCount = Invoke-RestMethod -Uri $alertsUrl -Method Get
+            Write-Host "Total alerts found: $($alertCount.numberOfAlerts)" -ForegroundColor Cyan
+            
+          } catch {
+            Write-Host "Error during ZAP scan: $($_.Exception.Message)" -ForegroundColor Red
+          } finally {
+            # Stop ZAP
+            Write-Host "Stopping ZAP daemon..." -ForegroundColor Yellow
+            try {
+              $shutdownUrl = "http://localhost:${zapPort}/JSON/core/action/shutdown/?apikey=${zapApiKey}"
+              Invoke-RestMethod -Uri $shutdownUrl -Method Get -ErrorAction SilentlyContinue
+            } catch {}
+            Start-Sleep -Seconds 3
+            Stop-Process -Name "java" -Force -ErrorAction SilentlyContinue
+            Write-Host "✓ ZAP stopped" -ForegroundColor Green
+          }
+          
+          Write-Host "Reports generated in workspace" -ForegroundColor Cyan
             }
             summary = @{
                 message = "OWASP ZAP scan report generated for Build #${{ github.run_number }}"
@@ -371,6 +560,18 @@ jobs:
             } else {
               Write-Host "✗ Source JSON report not found: $jsonReportPath" -ForegroundColor Red
             }
+            
+            # Copy XML report
+            $xmlReportPath = "${{ github.workspace }}\zap-report.xml"
+            if (Test-Path $xmlReportPath) {
+              $destXml = "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.xml"
+              Copy-Item $xmlReportPath -Destination $destXml -Force -ErrorAction Stop
+              
+              if (Test-Path $destXml) {
+                $fileSize = (Get-Item $destXml).Length
+                Write-Host "✓ ZAP XML report saved: $destXml ($fileSize bytes)" -ForegroundColor Green
+              }
+            }
           } catch {
             Write-Host "Error copying ZAP reports: $($_.Exception.Message)" -ForegroundColor Red
           }
@@ -386,6 +587,7 @@ jobs:
           path: |
             ${{ github.workspace }}\zap-report.html
             ${{ github.workspace }}\zap-report.json
+            ${{ github.workspace }}\zap-report.xml
           retention-days: 30
         continue-on-error: true
 
