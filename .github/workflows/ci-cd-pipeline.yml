@@ -786,7 +786,11 @@ jobs:
             # Run Black Duck scan
             Write-Host "Running Black Duck scan (this may take 3-5 minutes)..." -ForegroundColor Yellow
             
-            java -jar $detectJar `
+            # Set Java memory options to prevent out of memory errors (reduced for low-memory systems)
+            $env:JAVA_OPTS = "-Xmx384m -Xms128m"
+            $env:_JAVA_OPTIONS = "-Xmx384m -Xms128m"
+            
+            java -Xmx384m -Xms128m -jar $detectJar `
               --blackduck.url=$bdUrl `
               --blackduck.api.token=$bdToken `
               --detect.project.name=$projectName `
