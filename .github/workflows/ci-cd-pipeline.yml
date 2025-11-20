@@ -879,75 +879,44 @@ jobs:
                   $mediumCount = if ($riskData.categories.VULNERABILITY.MEDIUM) { $riskData.categories.VULNERABILITY.MEDIUM } else { 0 }
                   $lowCount = if ($riskData.categories.VULNERABILITY.LOW) { $riskData.categories.VULNERABILITY.LOW } else { 0 }
                   
-                  $htmlReport = @"
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset='UTF-8'>
-  <title>Black Duck Security Report - Build ${{ github.run_number }}</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
-    .header { background-color: #2c3e50; color: white; padding: 20px; border-radius: 5px; }
-    .summary { background-color: white; padding: 20px; margin: 20px 0; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .metric { display: inline-block; margin: 10px 20px; text-align: center; }
-    .metric-value { font-size: 36px; font-weight: bold; }
-    .metric-label { font-size: 14px; color: #666; }
-    .critical { color: #c0392b; }
-    .high { color: #e74c3c; }
-    .medium { color: #f39c12; }
-    .low { color: #3498db; }
-    .ok { color: #27ae60; }
-    table { width: 100%; border-collapse: collapse; background-color: white; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    th { background-color: #34495e; color: white; padding: 12px; text-align: left; }
-    td { padding: 10px; border-bottom: 1px solid #ddd; }
-    tr:hover { background-color: #f5f5f5; }
-    .section-title { color: #2c3e50; margin-top: 30px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-  </style>
-</head>
-<body>
-  <div class='header'>
-    <h1>Black Duck Security Report</h1>
-    <p>Project: $projectName | Version: $projectVersion | Build: ${{ github.run_number }}</p>
-    <p>Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</p>
-  </div>
-  
-  <div class='summary'>
-    <h2>Security Risk Summary</h2>
-    <div class='metric'>
-      <div class='metric-value'>$compCount</div>
-      <div class='metric-label'>Total Components</div>
-    </div>
-    <div class='metric'>
-      <div class='metric-value'>$vulnCount</div>
-      <div class='metric-label'>Vulnerable Components</div>
-    </div>
-    <div class='metric'>
-      <div class='metric-value critical'>$criticalCount</div>
-      <div class='metric-label'>Critical</div>
-    </div>
-    <div class='metric'>
-      <div class='metric-value high'>$highCount</div>
-      <div class='metric-label'>High</div>
-    </div>
-    <div class='metric'>
-      <div class='metric-value medium'>$mediumCount</div>
-      <div class='metric-label'>Medium</div>
-    </div>
-    <div class='metric'>
-      <div class='metric-value low'>$lowCount</div>
-      <div class='metric-label'>Low</div>
-    </div>
-  </div>
-  
-  <h2 class='section-title'>Vulnerable Components</h2>
-  <table>
-    <tr>
-      <th>Component</th>
-      <th>Version</th>
-      <th>Vulnerabilities</th>
-      <th>Severity</th>
-    </tr>
-"@
+                  $buildNum = "${{ github.run_number }}"
+                  $genDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                  
+                  $htmlReport = "<!DOCTYPE html>`n"
+                  $htmlReport += "<html>`n<head>`n"
+                  $htmlReport += "<meta charset='UTF-8'>`n"
+                  $htmlReport += "<title>Black Duck Security Report - Build $buildNum</title>`n"
+                  $htmlReport += "<style>`n"
+                  $htmlReport += "body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }`n"
+                  $htmlReport += ".header { background-color: #2c3e50; color: white; padding: 20px; border-radius: 5px; }`n"
+                  $htmlReport += ".summary { background-color: white; padding: 20px; margin: 20px 0; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }`n"
+                  $htmlReport += ".metric { display: inline-block; margin: 10px 20px; text-align: center; }`n"
+                  $htmlReport += ".metric-value { font-size: 36px; font-weight: bold; }`n"
+                  $htmlReport += ".metric-label { font-size: 14px; color: #666; }`n"
+                  $htmlReport += ".critical { color: #c0392b; }`n"
+                  $htmlReport += ".high { color: #e74c3c; }`n"
+                  $htmlReport += ".medium { color: #f39c12; }`n"
+                  $htmlReport += ".low { color: #3498db; }`n"
+                  $htmlReport += ".ok { color: #27ae60; }`n"
+                  $htmlReport += "table { width: 100%; border-collapse: collapse; background-color: white; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }`n"
+                  $htmlReport += "th { background-color: #34495e; color: white; padding: 12px; text-align: left; }`n"
+                  $htmlReport += "td { padding: 10px; border-bottom: 1px solid #ddd; }`n"
+                  $htmlReport += "tr:hover { background-color: #f5f5f5; }`n"
+                  $htmlReport += ".section-title { color: #2c3e50; margin-top: 30px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }`n"
+                  $htmlReport += "</style>`n</head>`n<body>`n"
+                  $htmlReport += "<div class='header'>`n<h1>Black Duck Security Report</h1>`n"
+                  $htmlReport += "<p>Project: $projectName | Version: $projectVersion | Build: $buildNum</p>`n"
+                  $htmlReport += "<p>Generated: $genDate</p>`n</div>`n"
+                  $htmlReport += "<div class='summary'>`n<h2>Security Risk Summary</h2>`n"
+                  $htmlReport += "<div class='metric'><div class='metric-value'>$compCount</div><div class='metric-label'>Total Components</div></div>`n"
+                  $htmlReport += "<div class='metric'><div class='metric-value'>$vulnCount</div><div class='metric-label'>Vulnerable Components</div></div>`n"
+                  $htmlReport += "<div class='metric'><div class='metric-value critical'>$criticalCount</div><div class='metric-label'>Critical</div></div>`n"
+                  $htmlReport += "<div class='metric'><div class='metric-value high'>$highCount</div><div class='metric-label'>High</div></div>`n"
+                  $htmlReport += "<div class='metric'><div class='metric-value medium'>$mediumCount</div><div class='metric-label'>Medium</div></div>`n"
+                  $htmlReport += "<div class='metric'><div class='metric-value low'>$lowCount</div><div class='metric-label'>Low</div></div>`n"
+                  $htmlReport += "</div>`n"
+                  $htmlReport += "<h2 class='section-title'>Vulnerable Components</h2>`n<table>`n"
+                  $htmlReport += "<tr><th>Component</th><th>Version</th><th>Vulnerabilities</th><th>Severity</th></tr>`n"
                   
                   if ($vulnData.items) {
                     foreach ($item in $vulnData.items) {
@@ -971,36 +940,25 @@ jobs:
                         }
                       }
                       
-                      $htmlReport += @"
-    <tr>
-      <td>$componentName</td>
-      <td>$componentVersion</td>
-      <td>$vulnCountStr</td>
-      <td class='$severityClass'>$severity</td>
-    </tr>
-"@
+                      $htmlReport += "<tr>`n"
+                      $htmlReport += "<td>$componentName</td>`n"
+                      $htmlReport += "<td>$componentVersion</td>`n"
+                      $htmlReport += "<td>$vulnCountStr</td>`n"
+                      $htmlReport += "<td class='$severityClass'>$severity</td>`n"
+                      $htmlReport += "</tr>`n"
                     }
                   } else {
-                    $htmlReport += @"
-    <tr>
-      <td colspan='4' style='text-align: center; color: #27ae60; padding: 20px;'>
-        ✓ No vulnerable components detected
-      </td>
-    </tr>
-"@
+                    $htmlReport += "<tr>`n"
+                    $htmlReport += "<td colspan='4' style='text-align: center; color: #27ae60; padding: 20px;'>`n"
+                    $htmlReport += "✓ No vulnerable components detected`n"
+                    $htmlReport += "</td>`n</tr>`n"
                   }
                   
-                  $htmlReport += @"
-  </table>
-  
-  <div class='summary'>
-    <h3>View Full Report</h3>
-    <p>For complete analysis, visit the Black Duck dashboard:</p>
-    <p><a href='$bdUrl' target='_blank'>$bdUrl</a></p>
-  </div>
-</body>
-</html>
-"@
+                  $htmlReport += "</table>`n"
+                  $htmlReport += "<div class='summary'>`n<h3>View Full Report</h3>`n"
+                  $htmlReport += "<p>For complete analysis, visit the Black Duck dashboard:</p>`n"
+                  $htmlReport += "<p><a href='$bdUrl' target='_blank'>$bdUrl</a></p>`n"
+                  $htmlReport += "</div>`n</body>`n</html>`n"
                   
                   $htmlPath = "$localReportPath\BlackDuck-Report-Build-${{ github.run_number }}.html"
                   $htmlReport | Out-File -FilePath $htmlPath -Encoding UTF8
@@ -1008,26 +966,21 @@ jobs:
                   Write-Host "✓ HTML Report saved: $htmlPath ($htmlFileSize bytes)" -ForegroundColor Green
                   
                   # Generate text summary
-                  $txtReport = @"
-Black Duck Security Report
-Project: $projectName
-Version: $projectVersion
-Build: ${{ github.run_number }}
-Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-
-SECURITY RISK SUMMARY
-=====================
-Total Components: $compCount
-Vulnerable Components: $vulnCount
-
-Vulnerability Severity Distribution:
-- Critical: $criticalCount
-- High: $highCount
-- Medium: $mediumCount
-- Low: $lowCount
-
-Dashboard: $bdUrl
-"@
+                  $txtReport = "Black Duck Security Report`n"
+                  $txtReport += "Project: $projectName`n"
+                  $txtReport += "Version: $projectVersion`n"
+                  $txtReport += "Build: $buildNum`n"
+                  $txtReport += "Generated: $genDate`n`n"
+                  $txtReport += "SECURITY RISK SUMMARY`n"
+                  $txtReport += "=====================`n"
+                  $txtReport += "Total Components: $compCount`n"
+                  $txtReport += "Vulnerable Components: $vulnCount`n`n"
+                  $txtReport += "Vulnerability Severity Distribution:`n"
+                  $txtReport += "- Critical: $criticalCount`n"
+                  $txtReport += "- High: $highCount`n"
+                  $txtReport += "- Medium: $mediumCount`n"
+                  $txtReport += "- Low: $lowCount`n`n"
+                  $txtReport += "Dashboard: $bdUrl`n"
                   
                   $txtPath = "$localReportPath\BlackDuck-Report-Build-${{ github.run_number }}.txt"
                   $txtReport | Out-File -FilePath $txtPath -Encoding UTF8
