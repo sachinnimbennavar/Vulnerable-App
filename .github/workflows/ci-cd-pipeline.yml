@@ -633,6 +633,117 @@ jobs:
           retention-days: 30
         continue-on-error: true
 
+      - name: OWASP Dependency Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          Write-Host "Starting OWASP Dependency Check scan..." -ForegroundColor Cyan
+          
+          $depCheckPath = "C:\SSDLC\dependency-check-12.1.0-release\dependency-check"
+          $projectPath = "${{ github.workspace }}"
+          $reportPath = "${{ github.workspace }}\dependency-check-report"
+          
+          # Create report directory
+          New-Item -Path $reportPath -ItemType Directory -Force | Out-Null
+          
+          Write-Host "Scanning project dependencies..." -ForegroundColor Yellow
+          Write-Host "Project: $projectPath" -ForegroundColor White
+          
+          # Check if NVD API key is available
+          $nvdApiKey = $env:NVD_API_KEY
+          if ($nvdApiKey) {
+            Write-Host "✓ NVD API Key found - faster scan enabled" -ForegroundColor Green
+          } else {
+            Write-Host "⚠ NVD API Key not configured - scan will be slower" -ForegroundColor Yellow
+            Write-Host "  Get a free key at: https://nvd.nist.gov/developers/request-an-api-key" -ForegroundColor Gray
+          }
+          
+          try {
+            # Build command arguments
+            $depCheckArgs = @(
+              "--scan", $projectPath,
+              "--out", $reportPath,
+              "--format", "HTML",
+              "--format", "JSON",
+              "--format", "XML",
+              "--project", "Vulnerable-App",
+              "--disableYarnAudit",
+              "--disableNodeAudit",
+              "--disableAssembly",
+              "--failOnCVSS", "11"
+            )
+            
+            # Add NVD API key if available
+            if ($nvdApiKey) {
+              $depCheckArgs += "--nvdApiKey"
+              $depCheckArgs += $nvdApiKey
+            }
+            
+            # Run dependency check
+            & "$depCheckPath\bin\dependency-check.bat" @depCheckArgs
+            
+            Write-Host "✓ Dependency Check scan completed" -ForegroundColor Green
+            
+            # Check generated reports
+            $htmlReport = "$reportPath\dependency-check-report.html"
+            $jsonReport = "$reportPath\dependency-check-report.json"
+            $xmlReport = "$reportPath\dependency-check-report.xml"
+            
+            if (Test-Path $htmlReport) {
+              $size = (Get-Item $htmlReport).Length
+              Write-Host "✓ HTML report generated: $size bytes" -ForegroundColor Green
+            }
+            
+            # Copy reports to local directory
+            Write-Host "Copying Dependency Check reports..." -ForegroundColor Cyan
+            $localReportPath = "C:\Reports\Pipeline-Reports"
+            
+            if (-not (Test-Path $localReportPath)) {
+              New-Item -Path $localReportPath -ItemType Directory -Force | Out-Null
+              icacls $localReportPath /grant "NT AUTHORITY\NETWORK SERVICE:(OI)(CI)F" /T | Out-Null
+            }
+            
+            # Copy HTML report
+            if (Test-Path $htmlReport) {
+              $destHtml = "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.html"
+              Copy-Item $htmlReport -Destination $destHtml -Force
+              $fileSize = (Get-Item $destHtml).Length
+              Write-Host "✓ HTML report saved: $destHtml ($fileSize bytes)" -ForegroundColor Green
+            }
+            
+            # Copy JSON report
+            if (Test-Path $jsonReport) {
+              $destJson = "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.json"
+              Copy-Item $jsonReport -Destination $destJson -Force
+              $fileSize = (Get-Item $destJson).Length
+              Write-Host "✓ JSON report saved: $destJson ($fileSize bytes)" -ForegroundColor Green
+            }
+            
+            # Copy XML report
+            if (Test-Path $xmlReport) {
+              $destXml = "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.xml"
+              Copy-Item $xmlReport -Destination $destXml -Force
+              $fileSize = (Get-Item $destXml).Length
+              Write-Host "✓ XML report saved: $destXml ($fileSize bytes)" -ForegroundColor Green
+            }
+            
+          } catch {
+            Write-Host "Error during Dependency Check scan: $($_.Exception.Message)" -ForegroundColor Red
+          }
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Upload Dependency Check Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-reports
+          path: |
+            ${{ github.workspace }}\dependency-check-report\dependency-check-report.html
+            ${{ github.workspace }}\dependency-check-report\dependency-check-report.json
+            ${{ github.workspace }}\dependency-check-report\dependency-check-report.xml
+          retention-days: 30
+        continue-on-error: true
+
       - name: Deployment Summary
         run: |
           Write-Host ""
@@ -648,7 +759,8 @@ jobs:
           Write-Host ""
           Write-Host "Security Scanning:" -ForegroundColor Cyan
           Write-Host "✓ SonarQube: http://localhost:9000/dashboard?id=vulnerable-demo-app"
-          Write-Host "✓ OWASP ZAP: Check artifacts for security reports"
+          Write-Host "✓ OWASP ZAP: Dynamic Application Security Testing"
+          Write-Host "✓ OWASP Dependency Check: Software Composition Analysis"
           Write-Host "✓ Local Reports: C:\Reports\Pipeline-Reports"
           Write-Host ""
           Write-Host "Next Steps:"
