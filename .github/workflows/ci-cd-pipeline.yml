@@ -746,19 +746,16 @@ jobs:
 
       - name: Black Duck Security Scan
         env:
-          BLACKDUCK_URL: ${{ secrets.BLACKDUCK_URL }}
-          BLACKDUCK_USERNAME: ${{ secrets.BLACKDUCK_USERNAME }}
-          BLACKDUCK_PASSWORD: ${{ secrets.BLACKDUCK_PASSWORD }}
+          BLACKDUCK_API_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
         run: |
           Write-Host "Starting Black Duck security scan..." -ForegroundColor Cyan
           
-          $bdUrl = $env:BLACKDUCK_URL
-          $bdUsername = $env:BLACKDUCK_USERNAME
-          $bdPassword = $env:BLACKDUCK_PASSWORD
+          $bdToken = $env:BLACKDUCK_API_TOKEN
+          $bdUrl = "https://bd-site01.groupinfra.com"
           
-          if (-not $bdUrl -or -not $bdUsername -or -not $bdPassword) {
-            Write-Host "⚠ Black Duck credentials not configured - skipping scan" -ForegroundColor Yellow
-            Write-Host "  Required secrets: BLACKDUCK_URL, BLACKDUCK_USERNAME, BLACKDUCK_PASSWORD" -ForegroundColor Gray
+          if (-not $bdToken) {
+            Write-Host "⚠ Black Duck API token not configured - skipping scan" -ForegroundColor Yellow
+            Write-Host "  Required secret: BLACKDUCK_API_TOKEN" -ForegroundColor Gray
             exit 0
           }
           
@@ -766,12 +763,16 @@ jobs:
           Write-Host "Server: $bdUrl" -ForegroundColor White
           
           try {
-            # Download Black Duck Detect script
-            $detectScript = "${{ github.workspace }}\detect.ps1"
-            Write-Host "Downloading Black Duck Detect..." -ForegroundColor Yellow
+            # Check if Black Duck JAR exists
+            $detectJar = "${{ github.workspace }}\detect-10.6.0.jar"
             
-            Invoke-WebRequest -Uri "https://detect.blackduck.com/detect9.ps1" -OutFile $detectScript -UseBasicParsing
-            Write-Host "✓ Black Duck Detect downloaded" -ForegroundColor Green
+            if (-not (Test-Path $detectJar)) {
+              Write-Host "✗ Black Duck JAR not found at: $detectJar" -ForegroundColor Red
+              Write-Host "Please ensure detect-10.6.0.jar is in the repository" -ForegroundColor Yellow
+              exit 0
+            }
+            
+            Write-Host "✓ Black Duck JAR found" -ForegroundColor Green
             
             # Set up scan parameters
             $projectName = "Vulnerable-App"
@@ -785,16 +786,15 @@ jobs:
             # Run Black Duck scan
             Write-Host "Running Black Duck scan (this may take 3-5 minutes)..." -ForegroundColor Yellow
             
-            & $detectScript `
+            java -jar $detectJar `
               --blackduck.url=$bdUrl `
-              --blackduck.username=$bdUsername `
-              --blackduck.password=$bdPassword `
+              --blackduck.api.token=$bdToken `
               --detect.project.name=$projectName `
-              --detect.project.version.name=$projectVersion `
+              --detect.project.version=$projectVersion `
               --detect.source.path=$scanPath `
+              --blackduck.trust.cert=true `
               --detect.risk.report.pdf=true `
-              --detect.cleanup=false `
-              --blackduck.trust.cert=true
+              --detect.cleanup=false
             
             Write-Host "✓ Black Duck scan completed" -ForegroundColor Green
             
