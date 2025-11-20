@@ -1018,7 +1018,6 @@ jobs:
             C:\Reports\Pipeline-Reports\BlackDuck-Report-Build-${{ github.run_number }}.txt
             C:\Reports\Pipeline-Reports\BlackDuck-Vulnerabilities-Build-${{ github.run_number }}.json
             C:\Reports\Pipeline-Reports\BlackDuck-Components-Build-${{ github.run_number }}.json
-        continue-on-error: true
           retention-days: 30
         continue-on-error: true
 
