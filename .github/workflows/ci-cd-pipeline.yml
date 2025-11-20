@@ -395,12 +395,37 @@ jobs:
           $zapApiKey = "zap-api-key-12345"
           $zapPort = 8090
           
+          # Kill any existing ZAP processes
+          Stop-Process -Name "java" -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+          
           # Start ZAP in daemon mode
           Write-Host "Starting ZAP daemon..." -ForegroundColor Yellow
           $zapProcess = Start-Process -FilePath "$zapPath\zap.bat" -ArgumentList "-daemon","-port",$zapPort,"-config","api.key=$zapApiKey","-config","api.addrs.addr.name=.*","-config","api.addrs.addr.regex=true" -PassThru -WindowStyle Hidden
           
-          Start-Sleep -Seconds 20
-          Write-Host "✓ ZAP daemon started" -ForegroundColor Green
+          # Wait for ZAP to be ready (up to 60 seconds)
+          $maxWait = 60
+          $waited = 0
+          $zapReady = $false
+          
+          Write-Host "Waiting for ZAP daemon to initialize..." -ForegroundColor Yellow
+          while ($waited -lt $maxWait) {
+            Start-Sleep -Seconds 5
+            $waited += 5
+            try {
+              $testUrl = "http://localhost:$zapPort"
+              $response = Invoke-WebRequest -Uri $testUrl -Method Get -TimeoutSec 3 -ErrorAction Stop
+              $zapReady = $true
+              Write-Host "✓ ZAP daemon ready after $waited seconds" -ForegroundColor Green
+              break
+            } catch {
+              Write-Host "Waiting... ($waited/$maxWait seconds)" -ForegroundColor Gray
+            }
+          }
+          
+          if (-not $zapReady) {
+            throw "ZAP daemon failed to start after $maxWait seconds"
+          }
           
           try {
             $baseUrl = "http://localhost:${zapPort}"
@@ -411,12 +436,20 @@ jobs:
             $spiderResult = Invoke-RestMethod -Uri $spiderUrl -Method Get
             $spiderId = $spiderResult.scan
             
-            # Wait for spider to complete
+            # Wait for spider to complete (max 5 minutes)
+            $spiderMaxWait = 300
+            $spiderWaited = 0
             do {
-              Start-Sleep -Seconds 2
+              Start-Sleep -Seconds 3
+              $spiderWaited += 3
               $statusUrl = "${baseUrl}/JSON/spider/view/status/?scanId=${spiderId}&apikey=${zapApiKey}"
               $status = Invoke-RestMethod -Uri $statusUrl -Method Get
               Write-Host "Spider progress: $($status.status)%" -ForegroundColor Cyan
+              
+              if ($spiderWaited -ge $spiderMaxWait) {
+                Write-Host "⚠ Spider timeout after $spiderMaxWait seconds" -ForegroundColor Yellow
+                break
+              }
             } while ($status.status -lt 100)
             
             Write-Host "✓ Spidering complete" -ForegroundColor Green
@@ -427,12 +460,20 @@ jobs:
             $scanResult = Invoke-RestMethod -Uri $scanUrl -Method Get
             $scanId = $scanResult.scan
             
-            # Wait for active scan to complete
+            # Wait for active scan to complete (max 10 minutes)
+            $scanMaxWait = 600
+            $scanWaited = 0
             do {
               Start-Sleep -Seconds 5
+              $scanWaited += 5
               $statusUrl = "${baseUrl}/JSON/ascan/view/status/?scanId=${scanId}&apikey=${zapApiKey}"
               $status = Invoke-RestMethod -Uri $statusUrl -Method Get
               Write-Host "Scan progress: $($status.status)%" -ForegroundColor Cyan
+              
+              if ($scanWaited -ge $scanMaxWait) {
+                Write-Host "⚠ Active scan timeout after $scanMaxWait seconds, generating report with current findings" -ForegroundColor Yellow
+                break
+              }
             } while ($status.status -lt 100)
             
             Write-Host "✓ Active scan complete" -ForegroundColor Green
