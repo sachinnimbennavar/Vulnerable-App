@@ -822,12 +822,27 @@ jobs:
               "Content-Type" = "application/json"
             }
             
+            # Bypass SSL certificate validation for self-signed certs
+            if (-not ([System.Management.Automation.PSTypeName]'TrustAllCertsPolicy').Type) {
+              Add-Type @"
+              using System.Net;
+              using System.Security.Cryptography.X509Certificates;
+              public class TrustAllCertsPolicy : ICertificatePolicy {
+                public bool CheckValidationResult(ServicePoint sp, X509Certificate cert, WebRequest req, int problem) {
+                  return true;
+                }
+              }
+"@
+            }
+            [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+            
             # Get project version URL
             Write-Host "Retrieving project information..." -ForegroundColor Cyan
             $projectSearchUrl = "$bdUrl/api/projects?q=name:$projectName"
             
             try {
-              $projectResponse = Invoke-RestMethod -Uri $projectSearchUrl -Headers $headers -Method Get -SkipCertificateCheck
+              $projectResponse = Invoke-RestMethod -Uri $projectSearchUrl -Headers $headers -Method Get
               
               if ($projectResponse.items -and $projectResponse.items.Count -gt 0) {
                 $projectUrl = $projectResponse.items[0]._meta.href
@@ -835,7 +850,7 @@ jobs:
                 
                 # Get project version
                 $versionsUrl = "$projectUrl/versions?q=versionName:$projectVersion"
-                $versionResponse = Invoke-RestMethod -Uri $versionsUrl -Headers $headers -Method Get -SkipCertificateCheck
+                $versionResponse = Invoke-RestMethod -Uri $versionsUrl -Headers $headers -Method Get
                 
                 if ($versionResponse.items -and $versionResponse.items.Count -gt 0) {
                   $versionUrl = $versionResponse.items[0]._meta.href
@@ -844,7 +859,7 @@ jobs:
                   # Get vulnerability data
                   Write-Host "Downloading vulnerability data..." -ForegroundColor Cyan
                   $vulnUrl = "$versionUrl/vulnerable-bom-components?limit=1000"
-                  $vulnData = Invoke-RestMethod -Uri $vulnUrl -Headers $headers -Method Get -SkipCertificateCheck
+                  $vulnData = Invoke-RestMethod -Uri $vulnUrl -Headers $headers -Method Get
                   
                   # Save vulnerability report as JSON
                   $vulnJsonPath = "$localReportPath\BlackDuck-Vulnerabilities-Build-${{ github.run_number }}.json"
@@ -855,7 +870,7 @@ jobs:
                   # Get component data
                   Write-Host "Downloading component data..." -ForegroundColor Cyan
                   $componentsUrl = "$versionUrl/components?limit=1000"
-                  $componentsData = Invoke-RestMethod -Uri $componentsUrl -Headers $headers -Method Get -SkipCertificateCheck
+                  $componentsData = Invoke-RestMethod -Uri $componentsUrl -Headers $headers -Method Get
                   
                   # Save components report as JSON
                   $compJsonPath = "$localReportPath\BlackDuck-Components-Build-${{ github.run_number }}.json"
@@ -866,7 +881,7 @@ jobs:
                   # Get risk profile
                   Write-Host "Downloading risk profile..." -ForegroundColor Cyan
                   $riskUrl = "$versionUrl/risk-profile"
-                  $riskData = Invoke-RestMethod -Uri $riskUrl -Headers $headers -Method Get -SkipCertificateCheck
+                  $riskData = Invoke-RestMethod -Uri $riskUrl -Headers $headers -Method Get
                   
                   # Generate HTML report
                   Write-Host "Generating HTML report..." -ForegroundColor Cyan
