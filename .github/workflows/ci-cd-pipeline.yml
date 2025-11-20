@@ -802,8 +802,8 @@ jobs:
             
             Write-Host "✓ Black Duck scan completed" -ForegroundColor Green
             
-            # Find and copy reports
-            Write-Host "Searching for Black Duck reports..." -ForegroundColor Cyan
+            # Generate reports from Black Duck server
+            Write-Host "Generating Black Duck reports from server..." -ForegroundColor Cyan
             $localReportPath = "C:\Reports\Pipeline-Reports"
             
             if (-not (Test-Path $localReportPath)) {
@@ -811,23 +811,238 @@ jobs:
               icacls $localReportPath /grant "NT AUTHORITY\NETWORK SERVICE:(OI)(CI)F" /T | Out-Null
             }
             
-            # Search for risk report PDF
-            $riskReports = Get-ChildItem -Path $scanPath -Recurse -Filter "*RiskReport.pdf" -ErrorAction SilentlyContinue
-            if ($riskReports) {
-              foreach ($report in $riskReports) {
-                $destPdf = "$localReportPath\BlackDuck-RiskReport-Build-${{ github.run_number }}.pdf"
-                Copy-Item $report.FullName -Destination $destPdf -Force
-                $fileSize = (Get-Item $destPdf).Length
-                Write-Host "✓ Risk Report saved: $destPdf ($fileSize bytes)" -ForegroundColor Green
-              }
+            # Wait for Black Duck to process the scan
+            Write-Host "Waiting for Black Duck to process scan (30 seconds)..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 30
+            
+            # Set up API authentication
+            $headers = @{
+              "Authorization" = "Bearer $bdToken"
+              "Accept" = "application/json"
+              "Content-Type" = "application/json"
             }
             
-            # Search for notices report
-            $noticeReports = Get-ChildItem -Path $scanPath -Recurse -Filter "*notices*.txt" -ErrorAction SilentlyContinue
-            if ($noticeReports) {
-              $destNotices = "$localReportPath\BlackDuck-Notices-Build-${{ github.run_number }}.txt"
-              Copy-Item $noticeReports[0].FullName -Destination $destNotices -Force
-              Write-Host "✓ Notices Report saved: $destNotices" -ForegroundColor Green
+            # Get project version URL
+            Write-Host "Retrieving project information..." -ForegroundColor Cyan
+            $projectSearchUrl = "$bdUrl/api/projects?q=name:$projectName"
+            
+            try {
+              $projectResponse = Invoke-RestMethod -Uri $projectSearchUrl -Headers $headers -Method Get -SkipCertificateCheck
+              
+              if ($projectResponse.items -and $projectResponse.items.Count -gt 0) {
+                $projectUrl = $projectResponse.items[0]._meta.href
+                Write-Host "✓ Found project: $projectName" -ForegroundColor Green
+                
+                # Get project version
+                $versionsUrl = "$projectUrl/versions?q=versionName:$projectVersion"
+                $versionResponse = Invoke-RestMethod -Uri $versionsUrl -Headers $headers -Method Get -SkipCertificateCheck
+                
+                if ($versionResponse.items -and $versionResponse.items.Count -gt 0) {
+                  $versionUrl = $versionResponse.items[0]._meta.href
+                  Write-Host "✓ Found version: $projectVersion" -ForegroundColor Green
+                  
+                  # Get vulnerability data
+                  Write-Host "Downloading vulnerability data..." -ForegroundColor Cyan
+                  $vulnUrl = "$versionUrl/vulnerable-bom-components?limit=1000"
+                  $vulnData = Invoke-RestMethod -Uri $vulnUrl -Headers $headers -Method Get -SkipCertificateCheck
+                  
+                  # Save vulnerability report as JSON
+                  $vulnJsonPath = "$localReportPath\BlackDuck-Vulnerabilities-Build-${{ github.run_number }}.json"
+                  $vulnData | ConvertTo-Json -Depth 10 | Out-File -FilePath $vulnJsonPath -Encoding UTF8
+                  $vulnFileSize = (Get-Item $vulnJsonPath).Length
+                  Write-Host "✓ Vulnerabilities JSON saved: $vulnJsonPath ($vulnFileSize bytes)" -ForegroundColor Green
+                  
+                  # Get component data
+                  Write-Host "Downloading component data..." -ForegroundColor Cyan
+                  $componentsUrl = "$versionUrl/components?limit=1000"
+                  $componentsData = Invoke-RestMethod -Uri $componentsUrl -Headers $headers -Method Get -SkipCertificateCheck
+                  
+                  # Save components report as JSON
+                  $compJsonPath = "$localReportPath\BlackDuck-Components-Build-${{ github.run_number }}.json"
+                  $componentsData | ConvertTo-Json -Depth 10 | Out-File -FilePath $compJsonPath -Encoding UTF8
+                  $compFileSize = (Get-Item $compJsonPath).Length
+                  Write-Host "✓ Components JSON saved: $compJsonPath ($compFileSize bytes)" -ForegroundColor Green
+                  
+                  # Get risk profile
+                  Write-Host "Downloading risk profile..." -ForegroundColor Cyan
+                  $riskUrl = "$versionUrl/risk-profile"
+                  $riskData = Invoke-RestMethod -Uri $riskUrl -Headers $headers -Method Get -SkipCertificateCheck
+                  
+                  # Generate HTML report
+                  Write-Host "Generating HTML report..." -ForegroundColor Cyan
+                  
+                  $vulnCount = if ($vulnData.items) { $vulnData.items.Count } else { 0 }
+                  $compCount = if ($componentsData.items) { $componentsData.items.Count } else { 0 }
+                  
+                  $criticalCount = if ($riskData.categories.VULNERABILITY.CRITICAL) { $riskData.categories.VULNERABILITY.CRITICAL } else { 0 }
+                  $highCount = if ($riskData.categories.VULNERABILITY.HIGH) { $riskData.categories.VULNERABILITY.HIGH } else { 0 }
+                  $mediumCount = if ($riskData.categories.VULNERABILITY.MEDIUM) { $riskData.categories.VULNERABILITY.MEDIUM } else { 0 }
+                  $lowCount = if ($riskData.categories.VULNERABILITY.LOW) { $riskData.categories.VULNERABILITY.LOW } else { 0 }
+                  
+                  $htmlReport = @"
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='UTF-8'>
+  <title>Black Duck Security Report - Build ${{ github.run_number }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+    .header { background-color: #2c3e50; color: white; padding: 20px; border-radius: 5px; }
+    .summary { background-color: white; padding: 20px; margin: 20px 0; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .metric { display: inline-block; margin: 10px 20px; text-align: center; }
+    .metric-value { font-size: 36px; font-weight: bold; }
+    .metric-label { font-size: 14px; color: #666; }
+    .critical { color: #c0392b; }
+    .high { color: #e74c3c; }
+    .medium { color: #f39c12; }
+    .low { color: #3498db; }
+    .ok { color: #27ae60; }
+    table { width: 100%; border-collapse: collapse; background-color: white; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    th { background-color: #34495e; color: white; padding: 12px; text-align: left; }
+    td { padding: 10px; border-bottom: 1px solid #ddd; }
+    tr:hover { background-color: #f5f5f5; }
+    .section-title { color: #2c3e50; margin-top: 30px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class='header'>
+    <h1>Black Duck Security Report</h1>
+    <p>Project: $projectName | Version: $projectVersion | Build: ${{ github.run_number }}</p>
+    <p>Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</p>
+  </div>
+  
+  <div class='summary'>
+    <h2>Security Risk Summary</h2>
+    <div class='metric'>
+      <div class='metric-value'>$compCount</div>
+      <div class='metric-label'>Total Components</div>
+    </div>
+    <div class='metric'>
+      <div class='metric-value'>$vulnCount</div>
+      <div class='metric-label'>Vulnerable Components</div>
+    </div>
+    <div class='metric'>
+      <div class='metric-value critical'>$criticalCount</div>
+      <div class='metric-label'>Critical</div>
+    </div>
+    <div class='metric'>
+      <div class='metric-value high'>$highCount</div>
+      <div class='metric-label'>High</div>
+    </div>
+    <div class='metric'>
+      <div class='metric-value medium'>$mediumCount</div>
+      <div class='metric-label'>Medium</div>
+    </div>
+    <div class='metric'>
+      <div class='metric-value low'>$lowCount</div>
+      <div class='metric-label'>Low</div>
+    </div>
+  </div>
+  
+  <h2 class='section-title'>Vulnerable Components</h2>
+  <table>
+    <tr>
+      <th>Component</th>
+      <th>Version</th>
+      <th>Vulnerabilities</th>
+      <th>Severity</th>
+    </tr>
+"@
+                  
+                  if ($vulnData.items) {
+                    foreach ($item in $vulnData.items) {
+                      $componentName = $item.componentName
+                      $componentVersion = $item.componentVersionName
+                      $vulnLink = $item._meta.href
+                      
+                      $severity = "UNKNOWN"
+                      $severityClass = "low"
+                      $vulnCountStr = "N/A"
+                      
+                      if ($item.vulnerabilityWithRemediation) {
+                        $severity = $item.vulnerabilityWithRemediation.severity
+                        $vulnCountStr = "1"
+                        
+                        switch ($severity) {
+                          "CRITICAL" { $severityClass = "critical" }
+                          "HIGH" { $severityClass = "high" }
+                          "MEDIUM" { $severityClass = "medium" }
+                          "LOW" { $severityClass = "low" }
+                        }
+                      }
+                      
+                      $htmlReport += @"
+    <tr>
+      <td>$componentName</td>
+      <td>$componentVersion</td>
+      <td>$vulnCountStr</td>
+      <td class='$severityClass'>$severity</td>
+    </tr>
+"@
+                    }
+                  } else {
+                    $htmlReport += @"
+    <tr>
+      <td colspan='4' style='text-align: center; color: #27ae60; padding: 20px;'>
+        ✓ No vulnerable components detected
+      </td>
+    </tr>
+"@
+                  }
+                  
+                  $htmlReport += @"
+  </table>
+  
+  <div class='summary'>
+    <h3>View Full Report</h3>
+    <p>For complete analysis, visit the Black Duck dashboard:</p>
+    <p><a href='$bdUrl' target='_blank'>$bdUrl</a></p>
+  </div>
+</body>
+</html>
+"@
+                  
+                  $htmlPath = "$localReportPath\BlackDuck-Report-Build-${{ github.run_number }}.html"
+                  $htmlReport | Out-File -FilePath $htmlPath -Encoding UTF8
+                  $htmlFileSize = (Get-Item $htmlPath).Length
+                  Write-Host "✓ HTML Report saved: $htmlPath ($htmlFileSize bytes)" -ForegroundColor Green
+                  
+                  # Generate text summary
+                  $txtReport = @"
+Black Duck Security Report
+Project: $projectName
+Version: $projectVersion
+Build: ${{ github.run_number }}
+Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+
+SECURITY RISK SUMMARY
+=====================
+Total Components: $compCount
+Vulnerable Components: $vulnCount
+
+Vulnerability Severity Distribution:
+- Critical: $criticalCount
+- High: $highCount
+- Medium: $mediumCount
+- Low: $lowCount
+
+Dashboard: $bdUrl
+"@
+                  
+                  $txtPath = "$localReportPath\BlackDuck-Report-Build-${{ github.run_number }}.txt"
+                  $txtReport | Out-File -FilePath $txtPath -Encoding UTF8
+                  $txtFileSize = (Get-Item $txtPath).Length
+                  Write-Host "✓ Text Report saved: $txtPath ($txtFileSize bytes)" -ForegroundColor Green
+                  
+                } else {
+                  Write-Host "⚠ Version not found on server yet - scan may still be processing" -ForegroundColor Yellow
+                }
+              } else {
+                Write-Host "⚠ Project not found on server yet - scan may still be processing" -ForegroundColor Yellow
+              }
+            } catch {
+              Write-Host "⚠ Could not download reports from Black Duck API: $($_.Exception.Message)" -ForegroundColor Yellow
+              Write-Host "Scan data uploaded to server successfully - view at: $bdUrl" -ForegroundColor Cyan
             }
             
             Write-Host ""
@@ -846,8 +1061,11 @@ jobs:
         with:
           name: blackduck-reports
           path: |
-            **/*RiskReport.pdf
-            **/*notices*.txt
+            C:\Reports\Pipeline-Reports\BlackDuck-Report-Build-${{ github.run_number }}.html
+            C:\Reports\Pipeline-Reports\BlackDuck-Report-Build-${{ github.run_number }}.txt
+            C:\Reports\Pipeline-Reports\BlackDuck-Vulnerabilities-Build-${{ github.run_number }}.json
+            C:\Reports\Pipeline-Reports\BlackDuck-Components-Build-${{ github.run_number }}.json
+        continue-on-error: true
           retention-days: 30
         continue-on-error: true
 
