@@ -473,17 +473,6 @@ jobs:
           }
           
           Write-Host "Reports generated in workspace" -ForegroundColor Cyan
-            }
-            summary = @{
-                message = "OWASP ZAP scan report generated for Build #${{ github.run_number }}"
-            }
-          } | ConvertTo-Json -Depth 5
-          
-          $jsonReport | Out-File -FilePath $jsonReportPath -Encoding UTF8
-          
-          Write-Host "✓ ZAP scan completed" -ForegroundColor Green
-          
-          Write-Host "Reports generated in workspace" -ForegroundColor Cyan
           
           # Save ZAP reports locally
           Write-Host "Copying ZAP reports..." -ForegroundColor Cyan
