@@ -94,61 +94,38 @@ jobs:
             
             # Create detailed HTML report
             $htmlReport = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.html"
-            $html = @"
-<!DOCTYPE html>
-<html>
-<head>
-    <title>SonarQube Analysis Report - Build ${{ github.run_number }}</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        .header { background: #3498db; color: white; padding: 20px; border-radius: 5px; }
-        .metrics { display: flex; gap: 15px; margin: 20px 0; flex-wrap: wrap; }
-        .metric-box { background: white; padding: 15px; border-radius: 5px; min-width: 150px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .metric-value { font-size: 32px; font-weight: bold; }
-        .bugs { color: #e74c3c; }
-        .vulnerabilities { color: #e67e22; }
-        .code-smells { color: #f39c12; }
-        .hotspots { color: #9b59b6; }
-        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: #34495e; color: white; }
-        .severity-BLOCKER { background: #c0392b; color: white; padding: 5px 10px; border-radius: 3px; }
-        .severity-CRITICAL { background: #e74c3c; color: white; padding: 5px 10px; border-radius: 3px; }
-        .severity-MAJOR { background: #e67e22; color: white; padding: 5px 10px; border-radius: 3px; }
-        .severity-MINOR { background: #f39c12; color: white; padding: 5px 10px; border-radius: 3px; }
-        .severity-INFO { background: #3498db; color: white; padding: 5px 10px; border-radius: 3px; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>SonarQube Security Analysis Report</h1>
-        <p>Build #${{ github.run_number }} - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</p>
-        <p>Project: Vulnerable Demo Application</p>
-    </div>
-    
-    <div class="metrics">
-"@
+            
+            # Build HTML content using string concatenation
+            $htmlContent = '<!DOCTYPE html><html><head>'
+            $htmlContent += '<title>SonarQube Analysis Report - Build ${{ github.run_number }}</title>'
+            $htmlContent += '<style>'
+            $htmlContent += 'body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }'
+            $htmlContent += '.header { background: #3498db; color: white; padding: 20px; border-radius: 5px; }'
+            $htmlContent += '.metrics { display: flex; gap: 15px; margin: 20px 0; flex-wrap: wrap; }'
+            $htmlContent += '.metric-box { background: white; padding: 15px; border-radius: 5px; min-width: 150px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }'
+            $htmlContent += '.metric-value { font-size: 32px; font-weight: bold; }'
+            $htmlContent += '.bugs { color: #e74c3c; } .vulnerabilities { color: #e67e22; } .code-smells { color: #f39c12; }'
+            $htmlContent += 'table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }'
+            $htmlContent += 'th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }'
+            $htmlContent += 'th { background: #34495e; color: white; }'
+            $htmlContent += '.severity-BLOCKER { background: #c0392b; color: white; padding: 5px 10px; border-radius: 3px; }'
+            $htmlContent += '.severity-CRITICAL { background: #e74c3c; color: white; padding: 5px 10px; border-radius: 3px; }'
+            $htmlContent += '.severity-MAJOR { background: #e67e22; color: white; padding: 5px 10px; border-radius: 3px; }'
+            $htmlContent += '</style></head><body>'
+            $htmlContent += '<div class="header"><h1>SonarQube Security Analysis Report</h1>'
+            $htmlContent += "<p>Build #${{ github.run_number }} - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</p>"
+            $htmlContent += '<p>Project: Vulnerable Demo Application</p></div>'
+            $htmlContent += '<div class="metrics">'
             
             foreach ($measure in $metrics.component.measures) {
               $metricName = $measure.metric
               $value = $measure.value
-              $cssClass = $metricName
-              $html += "<div class='metric-box'><div class='metric-value $cssClass'>$value</div><div>$metricName</div></div>`n"
+              $htmlContent += "<div class='metric-box'><div class='metric-value'>$value</div><div>$metricName</div></div>"
             }
             
-            $html += @"
-    </div>
-    
-    <h2>Issues Found: $($issues.total)</h2>
-    <table>
-        <tr>
-            <th>Severity</th>
-            <th>Type</th>
-            <th>Message</th>
-            <th>File</th>
-            <th>Line</th>
-        </tr>
-"@
+            $htmlContent += '</div>'
+            $htmlContent += "<h2>Issues Found: $($issues.total)</h2>"
+            $htmlContent += '<table><tr><th>Severity</th><th>Type</th><th>Message</th><th>File</th><th>Line</th></tr>'
             
             foreach ($issue in $issues.issues) {
               $severity = $issue.severity
@@ -157,27 +134,19 @@ jobs:
               $component = $issue.component -replace '.*:', ''
               $line = if ($issue.line) { $issue.line } else { 'N/A' }
               
-              $html += "<tr>"
-              $html += "<td><span class='severity-$severity'>$severity</span></td>"
-              $html += "<td>$type</td>"
-              $html += "<td>$message</td>"
-              $html += "<td>$component</td>"
-              $html += "<td>$line</td>"
-              $html += "</tr>`n"
+              $htmlContent += "<tr>"
+              $htmlContent += "<td><span class='severity-$severity'>$severity</span></td>"
+              $htmlContent += "<td>$type</td><td>$message</td><td>$component</td><td>$line</td>"
+              $htmlContent += "</tr>"
             }
             
-            $html += @"
-    </table>
-    
-    <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 5px;">
-        <h3>Dashboard Link</h3>
-        <p><a href="http://localhost:9000/dashboard?id=vulnerable-demo-app" target="_blank">View in SonarQube Dashboard</a></p>
-    </div>
-</body>
-</html>
-"@
+            $htmlContent += '</table>'
+            $htmlContent += '<div style="margin-top: 20px; padding: 15px; background: white; border-radius: 5px;">'
+            $htmlContent += '<h3>Dashboard Link</h3>'
+            $htmlContent += '<p><a href="http://localhost:9000/dashboard?id=vulnerable-demo-app">View in SonarQube Dashboard</a></p>'
+            $htmlContent += '</div></body></html>'
             
-            $html | Out-File -FilePath $htmlReport -Encoding UTF8 -Force
+            $htmlContent | Out-File -FilePath $htmlReport -Encoding UTF8 -Force
             
             # Create JSON report
             $jsonReport = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.json"
@@ -192,18 +161,15 @@ jobs:
             
             # Create text summary
             $txtReport = "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.txt"
-            $summary = @"
-SonarQube Analysis Report
-=========================
-Build Number: ${{ github.run_number }}
-Project: Vulnerable Demo Application
-Version: ${{ env.ARTIFACT_VERSION }}
-Scan Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-Dashboard: http://localhost:9000/dashboard?id=vulnerable-demo-app
-
-Metrics:
---------
-"@
+            $summary = "SonarQube Analysis Report`n"
+            $summary += "=========================`n"
+            $summary += "Build Number: ${{ github.run_number }}`n"
+            $summary += "Project: Vulnerable Demo Application`n"
+            $summary += "Version: ${{ env.ARTIFACT_VERSION }}`n"
+            $summary += "Scan Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n"
+            $summary += "Dashboard: http://localhost:9000/dashboard?id=vulnerable-demo-app`n`n"
+            $summary += "Metrics:`n--------`n"
+            
             foreach ($measure in $metrics.component.measures) {
               $summary += "$($measure.metric): $($measure.value)`n"
             }
