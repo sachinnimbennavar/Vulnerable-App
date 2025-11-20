@@ -744,6 +744,109 @@ jobs:
           retention-days: 30
         continue-on-error: true
 
+      - name: Black Duck Security Scan
+        env:
+          BLACKDUCK_URL: ${{ secrets.BLACKDUCK_URL }}
+          BLACKDUCK_USERNAME: ${{ secrets.BLACKDUCK_USERNAME }}
+          BLACKDUCK_PASSWORD: ${{ secrets.BLACKDUCK_PASSWORD }}
+        run: |
+          Write-Host "Starting Black Duck security scan..." -ForegroundColor Cyan
+          
+          $bdUrl = $env:BLACKDUCK_URL
+          $bdUsername = $env:BLACKDUCK_USERNAME
+          $bdPassword = $env:BLACKDUCK_PASSWORD
+          
+          if (-not $bdUrl -or -not $bdUsername -or -not $bdPassword) {
+            Write-Host "⚠ Black Duck credentials not configured - skipping scan" -ForegroundColor Yellow
+            Write-Host "  Required secrets: BLACKDUCK_URL, BLACKDUCK_USERNAME, BLACKDUCK_PASSWORD" -ForegroundColor Gray
+            exit 0
+          }
+          
+          Write-Host "✓ Black Duck credentials found" -ForegroundColor Green
+          Write-Host "Server: $bdUrl" -ForegroundColor White
+          
+          try {
+            # Download Black Duck Detect script
+            $detectScript = "${{ github.workspace }}\detect.ps1"
+            Write-Host "Downloading Black Duck Detect..." -ForegroundColor Yellow
+            
+            Invoke-WebRequest -Uri "https://detect.blackduck.com/detect9.ps1" -OutFile $detectScript -UseBasicParsing
+            Write-Host "✓ Black Duck Detect downloaded" -ForegroundColor Green
+            
+            # Set up scan parameters
+            $projectName = "Vulnerable-App"
+            $projectVersion = "${{ github.run_number }}"
+            $scanPath = "${{ github.workspace }}"
+            
+            Write-Host "Project: $projectName" -ForegroundColor Cyan
+            Write-Host "Version: $projectVersion" -ForegroundColor Cyan
+            Write-Host "Scanning: $scanPath" -ForegroundColor Cyan
+            
+            # Run Black Duck scan
+            Write-Host "Running Black Duck scan (this may take 3-5 minutes)..." -ForegroundColor Yellow
+            
+            & $detectScript `
+              --blackduck.url=$bdUrl `
+              --blackduck.username=$bdUsername `
+              --blackduck.password=$bdPassword `
+              --detect.project.name=$projectName `
+              --detect.project.version.name=$projectVersion `
+              --detect.source.path=$scanPath `
+              --detect.risk.report.pdf=true `
+              --detect.cleanup=false `
+              --blackduck.trust.cert=true
+            
+            Write-Host "✓ Black Duck scan completed" -ForegroundColor Green
+            
+            # Find and copy reports
+            Write-Host "Searching for Black Duck reports..." -ForegroundColor Cyan
+            $localReportPath = "C:\Reports\Pipeline-Reports"
+            
+            if (-not (Test-Path $localReportPath)) {
+              New-Item -Path $localReportPath -ItemType Directory -Force | Out-Null
+              icacls $localReportPath /grant "NT AUTHORITY\NETWORK SERVICE:(OI)(CI)F" /T | Out-Null
+            }
+            
+            # Search for risk report PDF
+            $riskReports = Get-ChildItem -Path $scanPath -Recurse -Filter "*RiskReport.pdf" -ErrorAction SilentlyContinue
+            if ($riskReports) {
+              foreach ($report in $riskReports) {
+                $destPdf = "$localReportPath\BlackDuck-RiskReport-Build-${{ github.run_number }}.pdf"
+                Copy-Item $report.FullName -Destination $destPdf -Force
+                $fileSize = (Get-Item $destPdf).Length
+                Write-Host "✓ Risk Report saved: $destPdf ($fileSize bytes)" -ForegroundColor Green
+              }
+            }
+            
+            # Search for notices report
+            $noticeReports = Get-ChildItem -Path $scanPath -Recurse -Filter "*notices*.txt" -ErrorAction SilentlyContinue
+            if ($noticeReports) {
+              $destNotices = "$localReportPath\BlackDuck-Notices-Build-${{ github.run_number }}.txt"
+              Copy-Item $noticeReports[0].FullName -Destination $destNotices -Force
+              Write-Host "✓ Notices Report saved: $destNotices" -ForegroundColor Green
+            }
+            
+            Write-Host ""
+            Write-Host "Black Duck scan results available at:" -ForegroundColor Cyan
+            Write-Host "$bdUrl" -ForegroundColor White
+            
+          } catch {
+            Write-Host "Error during Black Duck scan: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "This may be due to network connectivity or authentication issues" -ForegroundColor Yellow
+          }
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Upload Black Duck Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: blackduck-reports
+          path: |
+            **/*RiskReport.pdf
+            **/*notices*.txt
+          retention-days: 30
+        continue-on-error: true
+
       - name: Deployment Summary
         run: |
           Write-Host ""
@@ -761,6 +864,7 @@ jobs:
           Write-Host "✓ SonarQube: http://localhost:9000/dashboard?id=vulnerable-demo-app"
           Write-Host "✓ OWASP ZAP: Dynamic Application Security Testing"
           Write-Host "✓ OWASP Dependency Check: Software Composition Analysis"
+          Write-Host "✓ Black Duck: Enterprise SCA & License Compliance"
           Write-Host "✓ Local Reports: C:\Reports\Pipeline-Reports"
           Write-Host ""
           Write-Host "Next Steps:"
