@@ -400,23 +400,23 @@ jobs:
           Start-Sleep -Seconds 2
           
           # Start ZAP in daemon mode
-          Write-Host "Starting ZAP daemon..." -ForegroundColor Yellow
+          Write-Host "Starting ZAP daemon (this may take 2-3 minutes)..." -ForegroundColor Yellow
           $zapProcess = Start-Process -FilePath "$zapPath\zap.bat" -ArgumentList "-daemon","-port",$zapPort,"-config","api.key=$zapApiKey","-config","api.addrs.addr.name=.*","-config","api.addrs.addr.regex=true" -PassThru -WindowStyle Hidden
           
-          # Wait for ZAP to be ready (up to 60 seconds)
-          $maxWait = 60
+          # Wait for ZAP to be ready (up to 180 seconds / 3 minutes)
+          $maxWait = 180
           $waited = 0
           $zapReady = $false
           
           Write-Host "Waiting for ZAP daemon to initialize..." -ForegroundColor Yellow
           while ($waited -lt $maxWait) {
-            Start-Sleep -Seconds 5
-            $waited += 5
+            Start-Sleep -Seconds 10
+            $waited += 10
             try {
-              $testUrl = "http://localhost:$zapPort"
-              $response = Invoke-WebRequest -Uri $testUrl -Method Get -TimeoutSec 3 -ErrorAction Stop
+              $testUrl = "http://localhost:$zapPort/JSON/core/view/version/?apikey=$zapApiKey"
+              $response = Invoke-RestMethod -Uri $testUrl -Method Get -TimeoutSec 5 -ErrorAction Stop
               $zapReady = $true
-              Write-Host "✓ ZAP daemon ready after $waited seconds" -ForegroundColor Green
+              Write-Host "✓ ZAP daemon ready after $waited seconds (Version: $($response.version))" -ForegroundColor Green
               break
             } catch {
               Write-Host "Waiting... ($waited/$maxWait seconds)" -ForegroundColor Gray
@@ -424,6 +424,14 @@ jobs:
           }
           
           if (-not $zapReady) {
+            Write-Host "✗ ZAP daemon failed to start after $maxWait seconds" -ForegroundColor Red
+            Write-Host "Checking if ZAP process is running..." -ForegroundColor Yellow
+            $javaProc = Get-Process -Name "java" -ErrorAction SilentlyContinue
+            if ($javaProc) {
+              Write-Host "Java process found (PID: $($javaProc.Id)), but ZAP API not responding" -ForegroundColor Yellow
+            } else {
+              Write-Host "No Java process found - ZAP failed to launch" -ForegroundColor Red
+            }
             throw "ZAP daemon failed to start after $maxWait seconds"
           }
           
