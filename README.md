@@ -1,5 +1,7 @@
 # Vulnerable Demo Application
 
+Pipeline test: Triggered at $(Get-Date)
+
 ## Pipeline & Security Scanning
 This project is integrated with GitHub Actions for automated security scanning, including CodeQL analysis. To test the pipeline, push any change to the repository.
 
