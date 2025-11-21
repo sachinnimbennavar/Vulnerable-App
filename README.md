@@ -1,5 +1,8 @@
 # Vulnerable Demo Application
 
+## Pipeline & Security Scanning
+This project is integrated with GitHub Actions for automated security scanning, including CodeQL analysis. To test the pipeline, push any change to the repository.
+
 ## ⚠️ Security Warning
 **This application contains INTENTIONAL security vulnerabilities for educational purposes. DO NOT deploy in production!**
 
