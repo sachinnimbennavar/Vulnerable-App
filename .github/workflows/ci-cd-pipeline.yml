@@ -805,6 +805,71 @@ jobs:
             C:\Reports\Pipeline-Reports\BlackDuck-RiskReport-Build-${{ github.run_number }}.pdf
           retention-days: 30
         continue-on-error: true
+      - name: Upload Scan Reports to Dashboard
+        run: |
+          Write-Host "Uploading scan reports to dashboard at http://localhost:3002/api..." -ForegroundColor Cyan
+          $baseUrl = "http://localhost:3002/api/upload"
+          $localReportPath = "C:\Reports\Pipeline-Reports"
+          $reports = @(
+            "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.html",
+            "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.json",
+            "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.txt",
+            "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.html",
+            "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.json",
+            "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.xml",
+            "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.html",
+            "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.json",
+            "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.xml",
+            "$localReportPath\BlackDuck-RiskReport-Build-${{ github.run_number }}.pdf"
+          )
+          foreach ($report in $reports) {
+            if (Test-Path $report) {
+              Write-Host "Uploading $report..." -ForegroundColor Yellow
+              try {
+                $fileName = [System.IO.Path]::GetFileName($report)
+                $form = @{
+                  file = Get-Item $report
+                  filename = $fileName
+                  build = "${{ github.run_number }}"
+                }
+                Invoke-RestMethod -Uri $baseUrl -Method Post -Form $form -TimeoutSec 30
+                Write-Host "✓ Uploaded $fileName to dashboard" -ForegroundColor Green
+              } catch {
+                Write-Host "✗ Failed to upload $fileName: $($_.Exception.Message)" -ForegroundColor Red
+              }
+            } else {
+              Write-Host "✗ Report not found: $report" -ForegroundColor Red
+            }
+          }
+          Write-Host "✓ All available reports uploaded to dashboard." -ForegroundColor Cyan
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Upload Scan Reports to Dashboard
+        shell: pwsh
+        run: |
+          $baseUrl = "http://localhost:3001/api"
+          $reports = @(
+              @{ path = "C:\Reports\Pipeline-Reports\zap-report.html"; endpoint = "$baseUrl/owaspZap/upload" },
+              @{ path = "C:\Reports\Pipeline-Reports\dependency-check-report.html"; endpoint = "$baseUrl/owaspDependency/upload" },
+              @{ path = "C:\Reports\Pipeline-Reports\sonarqube-report.html"; endpoint = "$baseUrl/sonarQube/upload" },
+              @{ path = "C:\Reports\Pipeline-Reports\blackduck-report.pdf"; endpoint = "$baseUrl/blackDuck/upload" },
+              @{ path = "C:\Reports\Pipeline-Reports\threatdragon-report.json"; endpoint = "$baseUrl/threatDragon/upload" }
+          )
+          foreach ($report in $reports) {
+              if (Test-Path $report.path) {
+                  Write-Host "Uploading $($report.path) to $($report.endpoint)..."
+                  try {
+                      Invoke-RestMethod -Uri $report.endpoint -Method Post -Form @{ file = Get-Item $report.path }
+                      Write-Host "Upload successful for $($report.path)"
+                  } catch {
+                      Write-Host "Upload failed for $($report.path): $_"
+                  }
+              } else {
+                  Write-Host "File not found: $($report.path)"
+              }
+          }
+        continue-on-error: true
 
       - name: Deployment Summary
         run: |
