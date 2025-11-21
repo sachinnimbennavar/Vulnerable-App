@@ -1,0 +1,11 @@
+---
+sourceLocationPrefix: C:\SSDLC\ssdlc-demo\deleteaftetest\Vulnerable-App
+baselineLinesOfCode: 77
+unicodeNewlines: true
+columnKind: utf16
+primaryLanguage: javascript
+creationMetadata:
+  sha: cf4d3833cd9a4b386abdb3ea1234229ba6e20822
+  cliVersion: 2.15.5
+  creationTime: 2025-11-20T17:36:15.572417900Z
+finalised: true
