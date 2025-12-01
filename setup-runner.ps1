@@ -43,7 +43,18 @@ if (Test-Path $RunnerPath) {
 # Step 2: Download runner
 Write-Host ""
 Write-Host "Step 2: Downloading GitHub Actions Runner..." -ForegroundColor Green
-$runnerVersion = "2.329.0"
+
+$latestReleaseUrl = "https://api.github.com/repos/actions/runner/releases/latest"
+try {
+    Write-Host "  Fetching latest runner version..."
+    $latestRelease = Invoke-RestMethod -Uri $latestReleaseUrl -UseBasicParsing
+    $runnerVersion = $latestRelease.tag_name.TrimStart('v')
+    Write-Host "  ✓ Latest version is $runnerVersion"
+} catch {
+    Write-Host "  ⚠ Could not fetch latest version, falling back to 2.319.0. Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    $runnerVersion = "2.319.0" # A recent, stable version as a fallback
+}
+
 $zipFile = "$RunnerPath\actions-runner-win-x64-$runnerVersion.zip"
 $url = "https://github.com/actions/runner/releases/download/v$runnerVersion/actions-runner-win-x64-$runnerVersion.zip"
 

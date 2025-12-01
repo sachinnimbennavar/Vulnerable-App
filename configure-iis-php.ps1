@@ -8,7 +8,7 @@ Write-Host ""
 Import-Module WebAdministration
 
 # PHP CGI path
-$phpCgiPath = "C:\xampp\php\php-cgi.exe"
+$phpCgiPath = "C:\Users\admin\Desktop\XAMPP\php\php-cgi.exe"
 
 # Verify PHP exists
 if (-not (Test-Path $phpCgiPath)) {
@@ -65,7 +65,7 @@ Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "system.w
 
 # Grant permissions to IIS user accounts
 Write-Host "Setting directory permissions..." -ForegroundColor Cyan
-$appPath = "C:\inetpub\wwwroot\JuiceShop\vulnerable-app"
+$appPath = "c:\SSDLC\ssdlc-demo\deleteaftetest\Vulnerable-App"
 icacls "$appPath" /grant "IIS_IUSRS:(OI)(CI)RX" /T
 icacls "$appPath" /grant "IUSR:(OI)(CI)RX" /T
 
@@ -73,8 +73,8 @@ Write-Host ""
 Write-Host "=== Configuration Complete ===" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "  1. Test the application: http://localhost/JuiceShop/vulnerable-app/" -ForegroundColor White
-Write-Host "  2. If you get a 500 error, check: C:\xampp\php\php.ini" -ForegroundColor White
+Write-Host "  1. Test the application by visiting the URL you configured in IIS (e.g., http://localhost or http://localhost:8888)" -ForegroundColor White
+Write-Host "  2. If you get a 500 error, check: C:\Users\admin\Desktop\XAMPP\php\php.ini" -ForegroundColor White
 Write-Host "     - Ensure extension_dir is set correctly" -ForegroundColor White
 Write-Host "     - Ensure required extensions are enabled" -ForegroundColor White
 Write-Host ""
