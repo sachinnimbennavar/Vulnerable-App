@@ -880,29 +880,23 @@ jobs:
         shell: pwsh
         continue-on-error: true
 
-  summarize:
-    needs: [build-scan-deploy]
-    runs-on: self-hosted
-    if: always() # This ensures the summary job always runs
-    env:
-      ARTIFACT_VERSION: ${{ needs.build-scan-deploy.outputs.artifact_version }}
-      
-    steps:
       - name: Deployment Summary
+        if: always() # This ensures the summary step always runs
         run: |
           Write-Host ""
           Write-Host "========================================" -ForegroundColor Green
           Write-Host "✓ Pipeline Run Summary" -ForegroundColor Green
           Write-Host "========================================" -ForegroundColor Green
           Write-Host ""
-          Write-Host "Build #: ${{ env.ARTIFACT_VERSION }}"
-          Write-Host "Artifact: ${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
+          Write-Host "Build #: ${{ steps.set_version.outputs.version }}"
+          Write-Host "Artifact: ${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
           Write-Host "Deployed to: C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
           Write-Host "Application URL: ${{ env.APP_URL }}"
           Write-Host "Nexus URL: ${{ env.NEXUS_REPOSITORY_URL }}"
           Write-Host ""
           Write-Host "Security Scanning:" -ForegroundColor Cyan
           Write-Host "✓ SonarQube: http://localhost:9000/dashboard?id=vulnerable-demo-app"
+          Write-Host "✓ CodeQL: Static Application Security Testing"
           Write-Host "✓ OWASP ZAP: Dynamic Application Security Testing"
           Write-Host "✓ OWASP Dependency Check: Software Composition Analysis"
           Write-Host "✓ Black Duck: Enterprise SCA & License Compliance"
