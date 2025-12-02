@@ -17,7 +17,7 @@ env:
   SONAR_HOST_URL: http://localhost:9000
 
 jobs:
-  build:
+  build-scan-deploy:
     runs-on: self-hosted
     outputs:
       artifact_version: ${{ steps.set_version.outputs.version }}
@@ -25,156 +25,11 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
+        
       - name: Set Artifact Version
         id: set_version
         run: echo "version=${{ github.run_number }}" >> $env:GITHUB_OUTPUT
         shell: pwsh
-
-      - name: Create ZIP Artifact
-        run: |
-          $zipPath = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
-          $excludePatterns = @('\.git', '\.github', '\.gitignore', 'node_modules', 'vendor', '*.zip')
-          
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          
-          $sourceDir = "${{ github.workspace }}"
-          $zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
-          
-          Get-ChildItem -Path $sourceDir -Recurse -File | Where-Object {
-            $file = $_
-            -not ($excludePatterns | Where-Object { $file.FullName -like "*$_*" })
-          } | ForEach-Object {
-            $entryPath = $_.FullName.Substring($sourceDir.Length).TrimStart('\')
-            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryPath) | Out-Null
-          }
-          
-          $zip.Dispose()
-          $zipSize = "{0:F2}" -f ((Get-Item $zipPath).Length / 1MB)
-          Write-Host "✓ ZIP created: $zipSize MB"
-        shell: pwsh
-
-      - name: Upload to Nexus
-        run: |
-          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
-          $groupPath = "${{ env.NEXUS_GROUP_ID }}".Replace(".", "/")
-          $nexusUrl = "${{ env.NEXUS_REPOSITORY_URL }}/$groupPath/${{ env.NEXUS_ARTIFACT_ID }}/${{ steps.set_version.outputs.version }}/${{ env.NEXUS_ARTIFACT_ID }}-${{ steps.set_version.outputs.version }}.zip"
-          
-          Write-Host "Uploading to Nexus..."
-          
-          $base64Creds = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("${{ env.NEXUS_USERNAME }}:${{ env.NEXUS_PASSWORD }}"))
-          $headers = @{
-            "Authorization" = "Basic $base64Creds"
-            "Content-Type" = "application/zip"
-          }
-          
-          try {
-            $response = Invoke-WebRequest -Uri $nexusUrl -Method PUT -InFile $zipFile -Headers $headers -UseBasicParsing
-            Write-Host "✓ Uploaded to Nexus (Status: $($response.StatusCode))"
-          } catch {
-            Write-Host "⚠ Warning: Nexus upload failed - $($_.Exception.Message)"
-            Write-Host "ℹ Note: If using windows-latest runner, Nexus is not accessible."
-            Write-Host "ℹ Solution: Setup self-hosted runner on your VM (see .github/SELF_HOSTED_RUNNER_SETUP.md)"
-          }
-        shell: pwsh
-        continue-on-error: true
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-artifact
-          path: ${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip
-          retention-days: 7
-
-  deploy:
-    needs: build
-    runs-on: self-hosted
-    env:
-      ARTIFACT_VERSION: ${{ needs.build.outputs.artifact_version }}
-
-    steps:
-      - name: Download Build Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: app-artifact
-
-      - name: Deploy to IIS
-        run: |
-          Write-Host "Deploying to IIS..."
-          
-          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
-          $zipFile = "${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
-          
-          # Create or clean deployment directory
-          if (Test-Path $iisPath) {
-            Write-Host "Cleaning existing deployment directory..."
-            Remove-Item -Path $iisPath\* -Recurse -Force
-          } else {
-            Write-Host "Creating deployment directory..."
-            New-Item -Path $iisPath -ItemType Directory -Force | Out-Null
-          }
-          
-          # Extract ZIP to IIS
-          Write-Host "Extracting application files..."
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile, $iisPath)
-          
-          $fileCount = (Get-ChildItem -Path $iisPath -Recurse -File).Count
-          Write-Host "✓ Deployed $fileCount files to IIS"
-          Write-Host "✓ Location: $iisPath"
-          
-          # Restart IIS Application Pool
-          Write-Host "Restarting IIS Application Pool..." -ForegroundColor Cyan
-          try {
-            Import-Module WebAdministration
-            $appPoolName = "DefaultAppPool"
-            
-            if (Get-WebAppPoolState -Name $appPoolName) {
-              Restart-WebAppPool -Name $appPoolName
-              Write-Host "✓ IIS Application Pool '$appPoolName' restarted" -ForegroundColor Green
-            }
-          } catch {
-            Write-Host "⚠ Warning: IIS restart encountered an issue - $($_.Exception.Message)" -ForegroundColor Yellow
-          }
-        shell: pwsh
-
-      - name: Verify Deployment
-        run: |
-          Write-Host "Verifying deployment..."
-          
-          $appUrl = "${{ env.APP_URL }}"
-          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
-          
-          # Check files exist
-          if (Test-Path "$iisPath\index.php") {
-            Write-Host "✓ Application files deployed"
-          } else {
-            Write-Host "✗ index.php not found"
-          }
-          
-          # Try to access application
-          try {
-            Start-Sleep -Seconds 2
-            $response = Invoke-WebRequest -Uri $appUrl -UseBasicParsing -TimeoutSec 5
-            if ($response.StatusCode -eq 200) {
-              Write-Host "✓ Application is accessible at $appUrl"
-            }
-          } catch {
-            Write-Host "⚠ Application may not be accessible yet: $($_.Exception.Message)"
-            Write-Host "ℹ Check manually at: $appUrl"
-          }
-        shell: pwsh
-        continue-on-error: true
-
-  security_scans:
-    needs: build
-    runs-on: self-hosted
-    env:
-      ARTIFACT_VERSION: ${{ needs.build.outputs.artifact_version }}
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -187,6 +42,8 @@ jobs:
         continue-on-error: true
 
       - name: SonarQube Scan
+        env:
+          ARTIFACT_VERSION: ${{ steps.set_version.outputs.version }}
         run: |
           Write-Host "Starting SonarQube analysis..." -ForegroundColor Cyan
           
@@ -365,6 +222,8 @@ jobs:
         continue-on-error: true
 
       - name: OWASP ZAP Security Scan
+        env:
+          ARTIFACT_VERSION: ${{ steps.set_version.outputs.version }}
         run: |
           Write-Host "Starting OWASP ZAP security scan..." -ForegroundColor Cyan
           
@@ -630,6 +489,7 @@ jobs:
 
       - name: OWASP Dependency Check
         env:
+          ARTIFACT_VERSION: ${{ steps.set_version.outputs.version }}
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           Write-Host "Starting OWASP Dependency Check scan..." -ForegroundColor Cyan
@@ -741,6 +601,7 @@ jobs:
 
       - name: Black Duck Security Scan
         env:
+          ARTIFACT_VERSION: ${{ steps.set_version.outputs.version }}
           BLACKDUCK_API_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
         run: |
           Write-Host "Starting Black Duck security scan..." -ForegroundColor Cyan
@@ -841,6 +702,8 @@ jobs:
           retention-days: 30
         continue-on-error: true
       - name: Upload Scan Reports to Dashboard
+        env:
+          ARTIFACT_VERSION: ${{ steps.set_version.outputs.version }}
         run: |
           Write-Host "Uploading scan reports to dashboard at http://localhost:3002/api..." -ForegroundColor Cyan
           $baseUrl = "http://localhost:3002/api/upload"
@@ -899,12 +762,130 @@ jobs:
         shell: pwsh
         continue-on-error: true
 
+      - name: Create ZIP Artifact
+        run: |
+          $zipPath = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
+          $excludePatterns = @('\.git', '\.github', '\.gitignore', 'node_modules', 'vendor', '*.zip')
+          
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          
+          $sourceDir = "${{ github.workspace }}"
+          $zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
+          
+          Get-ChildItem -Path $sourceDir -Recurse -File | Where-Object {
+            $file = $_
+            -not ($excludePatterns | Where-Object { $file.FullName -like "*$_*" })
+          } | ForEach-Object {
+            $entryPath = $_.FullName.Substring($sourceDir.Length).TrimStart('\')
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryPath) | Out-Null
+          }
+          
+          $zip.Dispose()
+          $zipSize = "{0:F2}" -f ((Get-Item $zipPath).Length / 1MB)
+          Write-Host "✓ ZIP created: $zipSize MB"
+        shell: pwsh
+
+      - name: Upload to Nexus
+        run: |
+          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
+          $groupPath = "${{ env.NEXUS_GROUP_ID }}".Replace(".", "/")
+          $nexusUrl = "${{ env.NEXUS_REPOSITORY_URL }}/$groupPath/${{ env.NEXUS_ARTIFACT_ID }}/${{ steps.set_version.outputs.version }}/${{ env.NEXUS_ARTIFACT_ID }}-${{ steps.set_version.outputs.version }}.zip"
+          
+          Write-Host "Uploading to Nexus..."
+          
+          $base64Creds = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("${{ env.NEXUS_USERNAME }}:${{ env.NEXUS_PASSWORD }}"))
+          $headers = @{
+            "Authorization" = "Basic $base64Creds"
+            "Content-Type" = "application/zip"
+          }
+          
+          try {
+            $response = Invoke-WebRequest -Uri $nexusUrl -Method PUT -InFile $zipFile -Headers $headers -UseBasicParsing
+            Write-Host "✓ Uploaded to Nexus (Status: $($response.StatusCode))"
+          } catch {
+            Write-Host "⚠ Warning: Nexus upload failed - $($_.Exception.Message)"
+            Write-Host "ℹ Note: If using windows-latest runner, Nexus is not accessible."
+            Write-Host "ℹ Solution: Setup self-hosted runner on your VM (see .github/SELF_HOSTED_RUNNER_SETUP.md)"
+          }
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Deploy to IIS
+        env:
+          ARTIFACT_VERSION: ${{ steps.set_version.outputs.version }}
+        run: |
+          Write-Host "Deploying to IIS..."
+          
+          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
+          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
+          
+          # Create or clean deployment directory
+          if (Test-Path $iisPath) {
+            Write-Host "Cleaning existing deployment directory..."
+            Remove-Item -Path $iisPath\* -Recurse -Force
+          } else {
+            Write-Host "Creating deployment directory..."
+            New-Item -Path $iisPath -ItemType Directory -Force | Out-Null
+          }
+          
+          # Extract ZIP to IIS
+          Write-Host "Extracting application files..."
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile, $iisPath)
+          
+          $fileCount = (Get-ChildItem -Path $iisPath -Recurse -File).Count
+          Write-Host "✓ Deployed $fileCount files to IIS"
+          Write-Host "✓ Location: $iisPath"
+          
+          # Restart IIS Application Pool
+          Write-Host "Restarting IIS Application Pool..." -ForegroundColor Cyan
+          try {
+            Import-Module WebAdministration
+            $appPoolName = "DefaultAppPool"
+            
+            if (Get-WebAppPoolState -Name $appPoolName) {
+              Restart-WebAppPool -Name $appPoolName
+              Write-Host "✓ IIS Application Pool '$appPoolName' restarted" -ForegroundColor Green
+            }
+          } catch {
+            Write-Host "⚠ Warning: IIS restart encountered an issue - $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+        shell: pwsh
+
+      - name: Verify Deployment
+        run: |
+          Write-Host "Verifying deployment..."
+          
+          $appUrl = "${{ env.APP_URL }}"
+          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
+          
+          # Check files exist
+          if (Test-Path "$iisPath\index.php") {
+            Write-Host "✓ Application files deployed"
+          } else {
+            Write-Host "✗ index.php not found"
+          }
+          
+          # Try to access application
+          try {
+            Start-Sleep -Seconds 2
+            $response = Invoke-WebRequest -Uri $appUrl -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -eq 200) {
+              Write-Host "✓ Application is accessible at $appUrl"
+            }
+          } catch {
+            Write-Host "⚠ Application may not be accessible yet: $($_.Exception.Message)"
+            Write-Host "ℹ Check manually at: $appUrl"
+          }
+        shell: pwsh
+        continue-on-error: true
+
   summarize:
-    needs: [deploy, security_scans]
+    needs: [build-scan-deploy]
     runs-on: self-hosted
     if: always() # This ensures the summary job always runs
     env:
-      ARTIFACT_VERSION: ${{ needs.build.outputs.artifact_version }}
+      ARTIFACT_VERSION: ${{ needs.build-scan-deploy.outputs.artifact_version }}
       
     steps:
       - name: Deployment Summary
