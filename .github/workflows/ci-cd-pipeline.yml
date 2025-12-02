@@ -21,10 +21,17 @@ jobs:
     runs-on: self-hosted
     outputs:
       artifact_version: ${{ steps.set_version.outputs.version }}
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          # Fetch all history for SonarQube blame information
+          fetch-depth: 0
         
       - name: Set Artifact Version
         id: set_version
@@ -32,13 +39,13 @@ jobs:
         shell: pwsh
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript
         continue-on-error: true
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         continue-on-error: true
 
       - name: SonarQube Scan
@@ -332,6 +339,71 @@ jobs:
             ${{ github.workspace }}\dependency-check-report\dependency-check-report.xml
           retention-days: 30
         continue-on-error: true
+
+      - name: Create ZIP Artifact
+        run: |
+          $zipPath = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
+          $excludePatterns = @('\.git', '\.github', '\.gitignore', 'node_modules', 'vendor', '*.zip', 'detect-*.jar')
+          
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          
+          $sourceDir = "${{ github.workspace }}"
+          $zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
+          
+          Get-ChildItem -Path $sourceDir -Recurse -File | Where-Object {
+            $file = $_
+            -not ($excludePatterns | Where-Object { $file.FullName -like "*$_*" })
+          } | ForEach-Object {
+            $entryPath = $_.FullName.Substring($sourceDir.Length).TrimStart('\')
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryPath) | Out-Null
+          }
+          
+          $zip.Dispose()
+          $zipSize = "{0:F2}" -f ((Get-Item $zipPath).Length / 1MB)
+          Write-Host "✓ ZIP created: $zipSize MB"
+        shell: pwsh
+
+      - name: Deploy to IIS
+        env:
+          ARTIFACT_VERSION: ${{ steps.set_version.outputs.version }}
+        run: |
+          Write-Host "Deploying to IIS..."
+          
+          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
+          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
+          
+          # Create or clean deployment directory
+          if (Test-Path $iisPath) {
+            Write-Host "Cleaning existing deployment directory..."
+            Remove-Item -Path $iisPath\* -Recurse -Force
+          } else {
+            Write-Host "Creating deployment directory..."
+            New-Item -Path $iisPath -ItemType Directory -Force | Out-Null
+          }
+          
+          # Extract ZIP to IIS
+          Write-Host "Extracting application files..."
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile, $iisPath)
+          
+          $fileCount = (Get-ChildItem -Path $iisPath -Recurse -File).Count
+          Write-Host "✓ Deployed $fileCount files to IIS"
+          Write-Host "✓ Location: $iisPath"
+          
+          # Restart IIS Application Pool
+          Write-Host "Restarting IIS Application Pool..." -ForegroundColor Cyan
+          try {
+            Import-Module WebAdministration
+            $appPoolName = "DefaultAppPool"
+            
+            if (Get-WebAppPoolState -Name $appPoolName) {
+              Restart-WebAppPool -Name $appPoolName
+              Write-Host "✓ IIS Application Pool '$appPoolName' restarted" -ForegroundColor Green
+            }
+          } catch {
+            Write-Host "⚠ Warning: IIS restart encountered an issue - $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+        shell: pwsh
 
       - name: OWASP ZAP Security Scan
         env:
@@ -697,8 +769,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: blackduck-reports
-          path: |
-            C:\Reports\Pipeline-Reports\BlackDuck-RiskReport-Build-${{ env.ARTIFACT_VERSION }}.pdf
+          path: C:\Reports\Pipeline-Reports\BlackDuck-RiskReport-Build-${{ steps.set_version.outputs.version }}.pdf
           retention-days: 30
         continue-on-error: true
       - name: Upload Scan Reports to Dashboard
@@ -762,29 +833,6 @@ jobs:
         shell: pwsh
         continue-on-error: true
 
-      - name: Create ZIP Artifact
-        run: |
-          $zipPath = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
-          $excludePatterns = @('\.git', '\.github', '\.gitignore', 'node_modules', 'vendor', '*.zip')
-          
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          
-          $sourceDir = "${{ github.workspace }}"
-          $zip = [System.IO.Compression.ZipFile]::Open($zipPath, 'Create')
-          
-          Get-ChildItem -Path $sourceDir -Recurse -File | Where-Object {
-            $file = $_
-            -not ($excludePatterns | Where-Object { $file.FullName -like "*$_*" })
-          } | ForEach-Object {
-            $entryPath = $_.FullName.Substring($sourceDir.Length).TrimStart('\')
-            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryPath) | Out-Null
-          }
-          
-          $zip.Dispose()
-          $zipSize = "{0:F2}" -f ((Get-Item $zipPath).Length / 1MB)
-          Write-Host "✓ ZIP created: $zipSize MB"
-        shell: pwsh
-
       - name: Upload to Nexus
         run: |
           $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
@@ -809,48 +857,6 @@ jobs:
           }
         shell: pwsh
         continue-on-error: true
-
-      - name: Deploy to IIS
-        env:
-          ARTIFACT_VERSION: ${{ steps.set_version.outputs.version }}
-        run: |
-          Write-Host "Deploying to IIS..."
-          
-          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
-          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
-          
-          # Create or clean deployment directory
-          if (Test-Path $iisPath) {
-            Write-Host "Cleaning existing deployment directory..."
-            Remove-Item -Path $iisPath\* -Recurse -Force
-          } else {
-            Write-Host "Creating deployment directory..."
-            New-Item -Path $iisPath -ItemType Directory -Force | Out-Null
-          }
-          
-          # Extract ZIP to IIS
-          Write-Host "Extracting application files..."
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile, $iisPath)
-          
-          $fileCount = (Get-ChildItem -Path $iisPath -Recurse -File).Count
-          Write-Host "✓ Deployed $fileCount files to IIS"
-          Write-Host "✓ Location: $iisPath"
-          
-          # Restart IIS Application Pool
-          Write-Host "Restarting IIS Application Pool..." -ForegroundColor Cyan
-          try {
-            Import-Module WebAdministration
-            $appPoolName = "DefaultAppPool"
-            
-            if (Get-WebAppPoolState -Name $appPoolName) {
-              Restart-WebAppPool -Name $appPoolName
-              Write-Host "✓ IIS Application Pool '$appPoolName' restarted" -ForegroundColor Green
-            }
-          } catch {
-            Write-Host "⚠ Warning: IIS restart encountered an issue - $($_.Exception.Message)" -ForegroundColor Yellow
-          }
-        shell: pwsh
 
       - name: Verify Deployment
         run: |
