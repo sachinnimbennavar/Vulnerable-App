@@ -201,6 +201,128 @@ jobs:
         shell: pwsh
         continue-on-error: true
 
+      - name: OWASP Dependency Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }} # Pass the secret as an environment variable
+          JAVA_OPTS: "-Xmx2g" # Limit memory to 2GB to prevent out-of-memory errors
+        run: |
+          Write-Host "Starting OWASP Dependency Check scan..." -ForegroundColor Cyan
+          
+          $depCheckInstallPath = "C:\SSDLC\dependency-check-12.1.0-release\dependency-check"
+          $scanReportPath = "${{ github.workspace }}\dependency-check-report"
+          
+          New-Item -Path $scanReportPath -ItemType Directory -Force | Out-Null
+          
+          if ("${{ env.NVD_API_KEY }}") {
+              Write-Host "✓ NVD API Key found - faster scan enabled" -ForegroundColor Green
+          }
+          else {
+              Write-Host "⚠ NVD API Key not configured - scan will be slower" -ForegroundColor Yellow
+          }
+          
+          try {
+              $depCheckArgs = @(
+                  "--scan", "${{ github.workspace }}",
+                  "--out", $scanReportPath,
+                  "--format", "ALL",
+                  "--project", "Vulnerable-App",
+                  "--disableYarnAudit",
+                  "--disableNodeAudit",
+                  "--disableAssembly",
+                  "--failOnCVSS", "11" # Do not fail the build
+              )
+          
+              if ("${{ env.NVD_API_KEY }}") {
+                  $depCheckArgs += "--nvdApiKey", "${{ env.NVD_API_KEY }}"
+              }
+          
+              & "$depCheckInstallPath\bin\dependency-check.bat" @depCheckArgs
+          
+              Write-Host "✓ Dependency Check scan completed." -ForegroundColor Green
+          
+              # Copy reports to local directory
+              $ReportPath = "C:\Reports\Pipeline-Reports"
+              $BuildNumber = "${{ github.run_number }}"
+              Write-Host "Copying Dependency Check reports to $ReportPath..." -ForegroundColor Cyan
+              if (-not (Test-Path $ReportPath)) {
+                  New-Item -Path $ReportPath -ItemType Directory -Force | Out-Null
+                  icacls $ReportPath /grant "NT AUTHORITY\NETWORK SERVICE:(OI)(CI)F" /T | Out-Null
+              }
+          
+              Copy-Item "$scanReportPath\dependency-check-report.html" -Destination "$ReportPath\DependencyCheck-Report-Build-${BuildNumber}.html" -Force
+              Copy-Item "$scanReportPath\dependency-check-report.json" -Destination "$ReportPath\DependencyCheck-Report-Build-${BuildNumber}.json" -Force
+              Copy-Item "$scanReportPath\dependency-check-report.xml" -Destination "$ReportPath\DependencyCheck-Report-Build-${BuildNumber}.xml" -Force
+              Write-Host "✓ Dependency Check reports copied." -ForegroundColor Green
+          }
+          catch {
+              Write-Host "Error during Dependency Check scan: $($_.Exception.Message)" -ForegroundColor Red
+          }
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Upload Dependency Check Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-reports
+          path: |
+            ${{ github.workspace }}\dependency-check-report\dependency-check-report.html
+            ${{ github.workspace }}\dependency-check-report\dependency-check-report.json
+            ${{ github.workspace }}\dependency-check-report\dependency-check-report.xml
+          retention-days: 30
+        continue-on-error: true
+
+      - name: Archive Application for Deployment
+        run: |
+          $sourcePath = "${{ github.workspace }}"
+          $zipFile = "$sourcePath\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
+          Write-Host "Creating application archive: $zipFile"
+          $itemsToArchive = Get-ChildItem -Path $sourcePath -Exclude ".git", ".github" # Get items, excluding specified folders
+          Compress-Archive -Path $itemsToArchive.FullName -DestinationPath $zipFile -Force
+          Write-Host "✓ Archive created successfully."
+        shell: pwsh
+
+      - name: Deploy to IIS
+        env:
+          BLACKDUCK_API_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
+        run: |
+          Write-Host "Deploying to IIS..."
+          
+          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
+          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
+          
+          # Create or clean deployment directory
+          if (Test-Path $iisPath) {
+            Write-Host "Cleaning existing deployment directory..."
+            Remove-Item -Path $iisPath\* -Recurse -Force
+          } else {
+            Write-Host "Creating deployment directory..."
+            New-Item -Path $iisPath -ItemType Directory -Force | Out-Null
+          }
+          
+          # Extract ZIP to IIS
+          Write-Host "Extracting application files..."
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile, $iisPath)
+          
+          $fileCount = (Get-ChildItem -Path $iisPath -Recurse -File).Count
+          Write-Host "✓ Deployed $fileCount files to IIS"
+          Write-Host "✓ Location: $iisPath"
+          
+          # Restart IIS Application Pool
+          Write-Host "Restarting IIS Application Pool..." -ForegroundColor Cyan
+          try {
+            Import-Module WebAdministration
+            $appPoolName = "DefaultAppPool"
+            
+            if (Get-WebAppPoolState -Name $appPoolName) {
+              Restart-WebAppPool -Name $appPoolName
+              Write-Host "✓ IIS Application Pool '$appPoolName' restarted" -ForegroundColor Green
+            }
+          } catch {
+            Write-Host "⚠ Warning: IIS restart encountered an issue - $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+        shell: pwsh
+
       - name: OWASP ZAP Security Scan
         run: |
           Write-Host "Starting OWASP ZAP security scan..." -ForegroundColor Cyan
@@ -347,126 +469,6 @@ jobs:
             ${{ github.workspace }}\zap-report.json
             ${{ github.workspace }}\zap-report.xml
         continue-on-error: true
-
-      - name: OWASP Dependency Check
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }} # Pass the secret as an environment variable
-        run: |
-          Write-Host "Starting OWASP Dependency Check scan..." -ForegroundColor Cyan
-          
-          $depCheckInstallPath = "C:\SSDLC\dependency-check-12.1.0-release\dependency-check"
-          $scanReportPath = "${{ github.workspace }}\dependency-check-report"
-          
-          New-Item -Path $scanReportPath -ItemType Directory -Force | Out-Null
-          
-          if ("${{ env.NVD_API_KEY }}") {
-              Write-Host "✓ NVD API Key found - faster scan enabled" -ForegroundColor Green
-          }
-          else {
-              Write-Host "⚠ NVD API Key not configured - scan will be slower" -ForegroundColor Yellow
-          }
-          
-          try {
-              $depCheckArgs = @(
-                  "--scan", "${{ github.workspace }}",
-                  "--out", $scanReportPath,
-                  "--format", "ALL",
-                  "--project", "Vulnerable-App",
-                  "--disableYarnAudit",
-                  "--disableNodeAudit",
-                  "--disableAssembly",
-                  "--failOnCVSS", "11" # Do not fail the build
-              )
-          
-              if ("${{ env.NVD_API_KEY }}") {
-                  $depCheckArgs += "--nvdApiKey", "${{ env.NVD_API_KEY }}"
-              }
-          
-              & "$depCheckInstallPath\bin\dependency-check.bat" @depCheckArgs
-          
-              Write-Host "✓ Dependency Check scan completed." -ForegroundColor Green
-          
-              # Copy reports to local directory
-              $ReportPath = "C:\Reports\Pipeline-Reports"
-              $BuildNumber = "${{ github.run_number }}"
-              Write-Host "Copying Dependency Check reports to $ReportPath..." -ForegroundColor Cyan
-              if (-not (Test-Path $ReportPath)) {
-                  New-Item -Path $ReportPath -ItemType Directory -Force | Out-Null
-                  icacls $ReportPath /grant "NT AUTHORITY\NETWORK SERVICE:(OI)(CI)F" /T | Out-Null
-              }
-          
-              Copy-Item "$scanReportPath\dependency-check-report.html" -Destination "$ReportPath\DependencyCheck-Report-Build-${BuildNumber}.html" -Force
-              Copy-Item "$scanReportPath\dependency-check-report.json" -Destination "$ReportPath\DependencyCheck-Report-Build-${BuildNumber}.json" -Force
-              Copy-Item "$scanReportPath\dependency-check-report.xml" -Destination "$ReportPath\DependencyCheck-Report-Build-${BuildNumber}.xml" -Force
-              Write-Host "✓ Dependency Check reports copied." -ForegroundColor Green
-          }
-          catch {
-              Write-Host "Error during Dependency Check scan: $($_.Exception.Message)" -ForegroundColor Red
-          }
-        shell: pwsh
-        continue-on-error: true
-
-      - name: Upload Dependency Check Reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-check-reports
-          path: |
-            ${{ github.workspace }}\dependency-check-report\dependency-check-report.html
-            ${{ github.workspace }}\dependency-check-report\dependency-check-report.json
-            ${{ github.workspace }}\dependency-check-report\dependency-check-report.xml
-          retention-days: 30
-        continue-on-error: true
-
-      - name: Archive Application for Deployment
-        run: |
-          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
-          Write-Host "Creating application archive: $zipFile"
-          # Exclude git history and pipeline files from the archive
-          Compress-Archive -Path ${{ github.workspace }}\* -DestinationPath $zipFile -Force -Exclude ".git*", ".github*"
-          Write-Host "✓ Archive created successfully."
-        shell: pwsh
-
-      - name: Deploy to IIS
-        env:
-          BLACKDUCK_API_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
-        run: |
-          Write-Host "Deploying to IIS..."
-          
-          $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
-          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
-          
-          # Create or clean deployment directory
-          if (Test-Path $iisPath) {
-            Write-Host "Cleaning existing deployment directory..."
-            Remove-Item -Path $iisPath\* -Recurse -Force
-          } else {
-            Write-Host "Creating deployment directory..."
-            New-Item -Path $iisPath -ItemType Directory -Force | Out-Null
-          }
-          
-          # Extract ZIP to IIS
-          Write-Host "Extracting application files..."
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipFile, $iisPath)
-          
-          $fileCount = (Get-ChildItem -Path $iisPath -Recurse -File).Count
-          Write-Host "✓ Deployed $fileCount files to IIS"
-          Write-Host "✓ Location: $iisPath"
-          
-          # Restart IIS Application Pool
-          Write-Host "Restarting IIS Application Pool..." -ForegroundColor Cyan
-          try {
-            Import-Module WebAdministration
-            $appPoolName = "DefaultAppPool"
-            
-            if (Get-WebAppPoolState -Name $appPoolName) {
-              Restart-WebAppPool -Name $appPoolName
-              Write-Host "✓ IIS Application Pool '$appPoolName' restarted" -ForegroundColor Green
-            }
-          } catch {
-            Write-Host "⚠ Warning: IIS restart encountered an issue - $($_.Exception.Message)" -ForegroundColor Yellow
-          }
-        shell: pwsh
 
       - name: Black Duck Security Scan
         run: |
