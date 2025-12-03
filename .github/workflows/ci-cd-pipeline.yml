@@ -469,12 +469,17 @@ jobs:
         shell: pwsh
 
       - name: Black Duck Security Scan
-        uses: synopsys-sig/blackduck-scan@v2
-        with:
-          blackduck-url: "https://bd-site01.groupinfra.com"
-          blackduck-api-token: ${{ secrets.BLACKDUCK_API_TOKEN }}
-          scan-mode: "INTELLIGENT"
-          args: '--detect.project.name="Vulnerable-App" --detect.project.version.name="${{ steps.set_version.outputs.version }}" --blackduck.trust.cert=true'
+        run: |
+          Write-Host "Running Black Duck scan using Synopsys Detect script..."
+          $DETECT_SCRIPT_URL = "https://detect.synopsys.com/detect.ps1"
+          $DETECT_ARGS = @(
+            "--blackduck.url='https://bd-site01.groupinfra.com'",
+            "--blackduck.api.token='${{ secrets.BLACKDUCK_API_TOKEN }}'",
+            "--detect.project.name='Vulnerable-App'",
+            "--detect.project.version.name='${{ steps.set_version.outputs.version }}'",
+            "--blackduck.trust.cert=true"
+          )
+          powershell "[Net.ServicePointManager]::SecurityProtocol = 'tls12'; irm $DETECT_SCRIPT_URL | iex; detect $DETECT_ARGS"
         continue-on-error: true
 
       - name: Upload Black Duck Reports
