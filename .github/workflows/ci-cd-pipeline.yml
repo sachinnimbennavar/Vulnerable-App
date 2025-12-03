@@ -37,6 +37,7 @@ jobs:
         continue-on-error: true
 
       - name: SonarQube Scan
+        shell: pwsh
         run: |
           Write-Host "Starting SonarQube analysis..." -ForegroundColor Cyan
           
@@ -211,7 +212,6 @@ jobs:
             $reportContent += "Status: Analysis Complete (API report failed, view dashboard for details)"
             $reportContent | Out-File -FilePath $sonarReportFile -Encoding UTF8 -Force
           }
-        shell: pwsh
         continue-on-error: true
 
       - name: Create ZIP Artifact
@@ -331,6 +331,7 @@ jobs:
         continue-on-error: true
 
       - name: OWASP ZAP Security Scan
+        shell: pwsh
         run: |
           Write-Host "Starting OWASP ZAP security scan..." -ForegroundColor Cyan
           
@@ -580,7 +581,6 @@ jobs:
           }
           
           Write-Host ""
-        shell: pwsh
         continue-on-error: true
 
       - name: Upload ZAP Report
@@ -597,6 +597,7 @@ jobs:
       - name: OWASP Dependency Check
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        shell: pwsh
         run: |
           Write-Host "Starting OWASP Dependency Check scan..." -ForegroundColor Cyan
           
@@ -691,7 +692,6 @@ jobs:
           } catch {
             Write-Host "Error during Dependency Check scan: $($_.Exception.Message)" -ForegroundColor Red
           }
-        shell: pwsh
         continue-on-error: true
 
       - name: Upload Dependency Check Reports
