@@ -8,7 +8,7 @@ Write-Host ""
 Import-Module WebAdministration
 
 # PHP CGI path
-$phpCgiPath = "C:\Users\admin\Desktop\XAMPP\php\php-cgi.exe"
+$phpCgiPath = "C:\xampp\php\php-cgi.exe"
 
 # Verify PHP exists
 if (-not (Test-Path $phpCgiPath)) {
