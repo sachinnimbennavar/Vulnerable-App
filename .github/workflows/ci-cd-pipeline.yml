@@ -469,7 +469,7 @@ jobs:
         shell: pwsh
 
       - name: Black Duck Security Scan
-        uses: synopsys-sig/blackduck-scan@2024.4.1
+        uses: synopsys-sig/blackduck-scan@v2
         with:
           blackduck-url: "https://bd-site01.groupinfra.com"
           blackduck-api-token: ${{ secrets.BLACKDUCK_API_TOKEN }}
