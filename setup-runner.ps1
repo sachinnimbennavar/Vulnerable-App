@@ -112,7 +112,7 @@ try {
 Write-Host ""
 Write-Host "Step 5: Installing as Windows service..." -ForegroundColor Green
 try {
-    & .\svc.cmd install
+    & .\svc.cmd install Administrator
     Write-Host "  ✓ Service installed"
 } catch {
     Write-Host "  ❌ Service installation failed: $_" -ForegroundColor Red

@@ -290,7 +290,7 @@ jobs:
           # Restart IIS Application Pool
           Write-Host "Restarting IIS Application Pool..." -ForegroundColor Cyan
           try {
-            Import-Module WebAdministration
+            Import-Module WebAdministration -SkipEditionCheck
             $appPoolName = "DefaultAppPool"
             
             if (Get-WebAppPoolState -Name $appPoolName) {
