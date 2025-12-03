@@ -399,16 +399,14 @@ jobs:
           Write-Host "✓ Location: $iisPath"
           
           # Restart IIS Application Pool
-          Write-Host "Restarting IIS Application Pool (using Windows PowerShell for compatibility)..." -ForegroundColor Cyan
+          Write-Host "Restarting IIS Application Pool (using appcmd.exe for reliability)..." -ForegroundColor Cyan
           $appPoolName = "DefaultAppPool"
-          $scriptBlock = "Import-Module WebAdministration; Restart-WebAppPool -Name $appPoolName"
-          
-          powershell.exe -NoProfile -NonInteractive -Command $scriptBlock
-          
-          if ($LASTEXITCODE -eq 0) {
-              Write-Host "✓ IIS Application Pool '$appPoolName' restarted successfully." -ForegroundColor Green
-          } else {
-              Write-Host "⚠ Warning: IIS restart command finished with exit code $LASTEXITCODE. Check logs for details." -ForegroundColor Yellow
+          try {
+            & "C:\Windows\System32\inetsrv\appcmd.exe" recycle apppool /apppool.name:"$appPoolName"
+            Write-Host "✓ IIS Application Pool '$appPoolName' recycled successfully." -ForegroundColor Green
+          } catch {
+            Write-Host "⚠ Warning: Failed to recycle IIS Application Pool '$appPoolName'." -ForegroundColor Yellow
+            Write-Host $_.Exception.Message -ForegroundColor Yellow
           }
         shell: pwsh
 
@@ -862,32 +860,6 @@ jobs:
             Write-Host "✓ All available reports uploaded to dashboard." -ForegroundColor Cyan
           }
         shell: pwsh
-        continue-on-error: true
-
-      - name: Upload Scan Reports to Dashboard
-        shell: pwsh
-        run: |
-          $baseUrl = "http://localhost:3001/api"
-          $reports = @(
-              @{ path = "C:\Reports\Pipeline-Reports\zap-report.html"; endpoint = "$baseUrl/owaspZap/upload" },
-              @{ path = "C:\Reports\Pipeline-Reports\dependency-check-report.html"; endpoint = "$baseUrl/owaspDependency/upload" },
-              @{ path = "C:\Reports\Pipeline-Reports\sonarqube-report.html"; endpoint = "$baseUrl/sonarQube/upload" },
-              @{ path = "C:\Reports\Pipeline-Reports\blackduck-report.pdf"; endpoint = "$baseUrl/blackDuck/upload" },
-              @{ path = "C:\Reports\Pipeline-Reports\threatdragon-report.json"; endpoint = "$baseUrl/threatDragon/upload" }
-          )
-          foreach ($report in $reports) {
-              if (Test-Path $report.path) {
-                  Write-Host "Uploading $($report.path) to $($report.endpoint)..."
-                  try {
-                      Invoke-RestMethod -Uri $report.endpoint -Method Post -Form @{ file = Get-Item $report.path }
-                      Write-Host "Upload successful for $($report.path)"
-                  } catch {
-                      Write-Host "Upload failed for $($report.path): $_"
-                  }
-              } else {
-                  Write-Host "File not found: $($report.path)"
-              }
-          }
         continue-on-error: true
 
       - name: Deployment Summary
