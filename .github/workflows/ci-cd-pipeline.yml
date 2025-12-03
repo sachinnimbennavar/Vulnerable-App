@@ -13,7 +13,7 @@ env:
   NEXUS_GROUP_ID: com.example.vulnerable
   NEXUS_ARTIFACT_ID: vulnerable-app
   APP_NAME: vulnerable-app
-  APP_URL: http://localhost:8888/vulnerable-app/
+  APP_URL: http://localhost/ # Corrected: IIS site is configured on port 80
   SONAR_HOST_URL: http://localhost:9000
 
 jobs:
@@ -417,6 +417,15 @@ jobs:
           retention-days: 30
         continue-on-error: true
 
+      - name: Archive Application for Deployment
+        run: |
+          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
+          Write-Host "Creating application archive: $zipFile"
+          # Exclude git history and pipeline files from the archive
+          Compress-Archive -Path ${{ github.workspace }}\* -DestinationPath $zipFile -Force -Exclude ".git*", ".github*"
+          Write-Host "✓ Archive created successfully."
+        shell: pwsh
+
       - name: Deploy to IIS
         env:
           BLACKDUCK_API_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
@@ -424,7 +433,7 @@ jobs:
           Write-Host "Deploying to IIS..."
           
           $iisPath = "C:\inetpub\wwwroot\JuiceShop\${{ env.APP_NAME }}"
-          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ env.ARTIFACT_VERSION }}.zip"
+          $zipFile = "${{ github.workspace }}\${{ env.APP_NAME }}-${{ steps.set_version.outputs.version }}.zip"
           
           # Create or clean deployment directory
           if (Test-Path $iisPath) {
@@ -472,8 +481,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: blackduck-reports
-          path: |
-            C:\Reports\Pipeline-Reports\BlackDuck-RiskReport-Build-${{ env.ARTIFACT_VERSION }}.pdf
+          # This path is speculative. The Black Duck action may output reports to a different location.
+          path: ${{ github.workspace }}/blackduck/reports/*.pdf
           retention-days: 30
         continue-on-error: true
       - name: Upload Scan Reports to Dashboard
