@@ -397,17 +397,6 @@ jobs:
           $fileCount = (Get-ChildItem -Path $iisPath -Recurse -File).Count
           Write-Host "✓ Deployed $fileCount files to IIS"
           Write-Host "✓ Location: $iisPath"
-          
-          # Restart IIS Application Pool
-          Write-Host "Restarting IIS Application Pool (using appcmd.exe for reliability)..." -ForegroundColor Cyan
-          $appPoolName = "DefaultAppPool"
-          try {
-            & "C:\Windows\System32\inetsrv\appcmd.exe" recycle apppool /apppool.name:"$appPoolName"
-            Write-Host "✓ IIS Application Pool '$appPoolName' recycled successfully." -ForegroundColor Green
-          } catch {
-            Write-Host "⚠ Warning: Failed to recycle IIS Application Pool '$appPoolName'." -ForegroundColor Yellow
-            Write-Host $_.Exception.Message -ForegroundColor Yellow
-          }
         shell: pwsh
 
       - name: Verify Deployment
