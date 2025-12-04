@@ -8,7 +8,7 @@ Write-Host ""
 Import-Module WebAdministration
 
 # PHP CGI path
-$phpCgiPath = "C:\xampp\php\php-cgi.exe"
+$phpCgiPath = "C:\Users\admin\Desktop\XAMPP\php\php-cgi.exe"
 
 # Verify PHP exists
 if (-not (Test-Path $phpCgiPath)) {
@@ -68,6 +68,8 @@ Write-Host "Setting directory permissions..." -ForegroundColor Cyan
 $appPath = "c:\SSDLC\ssdlc-demo\deleteaftetest\Vulnerable-App"
 icacls "$appPath" /grant "IIS_IUSRS:(OI)(CI)RX" /T
 icacls "$appPath" /grant "IUSR:(OI)(CI)RX" /T
+icacls "C:\Users\admin\Desktop\XAMPP\php" /grant "IIS_IUSRS:(OI)(CI)RX" /T
+icacls "C:\Users\admin\Desktop\XAMPP\tmp" /grant "IIS_IUSRS:(OI)(CI)MW" /T
 
 Write-Host ""
 Write-Host "=== Configuration Complete ===" -ForegroundColor Green

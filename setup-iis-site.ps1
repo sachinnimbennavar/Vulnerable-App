@@ -14,6 +14,10 @@ if ($apacheService) {
     Write-Host "No active Apache service found to stop."
 }
 
+# Stop the default IIS site to prevent port conflicts
+Write-Host "Stopping 'Default Web Site' to prevent port 80 conflicts..." -ForegroundColor Yellow
+Stop-Website -Name "Default Web Site" -ErrorAction SilentlyContinue
+
 # Website details
 $siteName = "vulnerable-app"
 $physicalPath = "c:\SSDLC\ssdlc-demo\deleteaftetest\Vulnerable-App"

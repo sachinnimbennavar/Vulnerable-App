@@ -240,6 +240,13 @@ jobs:
             Write-Host "  Get a free key at: https://nvd.nist.gov/developers/request-an-api-key" -ForegroundColor Gray
           }
           
+          # Remove stale lock file to prevent database lock errors
+          $lockFile = "$depCheckPath\data\odc.update.lock"
+          if (Test-Path $lockFile) {
+            Write-Host "Removing stale Dependency Check lock file..." -ForegroundColor Yellow
+            Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
+          }
+
           try {
             # Build command arguments
             $depCheckArgs = @(
