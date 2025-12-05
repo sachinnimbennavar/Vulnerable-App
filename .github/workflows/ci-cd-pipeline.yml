@@ -813,11 +813,7 @@ jobs:
           $reportsToUpload = @{
             "$reportPath\SonarQube-Report-Build-$buildNumber.json" = "$baseApiUrl/sonarqube/upload"
             "$reportPath\ZAP-Report-Build-$buildNumber.html" = "$baseApiUrl/owasp-zap/upload"
-            "$reportPath\ZAP-Report-Build-$buildNumber.json" = "$baseApiUrl/owasp-zap/upload"
-            "$reportPath\ZAP-Report-Build-$buildNumber.xml" = "$baseApiUrl/owasp-zap/upload"
-            "$reportPath\DependencyCheck-Report-Build-$buildNumber.html" = "$baseApiUrl/owasp-dependency/upload"
             "$reportPath\DependencyCheck-Report-Build-$buildNumber.json" = "$baseApiUrl/owasp-dependency/upload"
-            "$reportPath\DependencyCheck-Report-Build-$buildNumber.xml" = "$baseApiUrl/owasp-dependency/upload"
             "$reportPath\BlackDuck-RiskReport-Build-$buildNumber.pdf" = "$baseApiUrl/blackduck/upload"
           }
 
