@@ -6,6 +6,7 @@ define('DB_HOST', 'localhost');
 define('DB_NAME', 'vulnerable_app');
 define('DB_USER', 'admin');
 define('DB_PASSWORD', 'admin123'); // VULNERABILITY: Hardcoded password
+define('BASE_URL', '/vulnerable-app/');
 
 // Security Issue #2: Hardcoded API keys
 define('API_SECRET_KEY', 'sk_live_4eC39HqLyjWDarjtT1zdp7dc'); // VULNERABILITY: Exposed API key

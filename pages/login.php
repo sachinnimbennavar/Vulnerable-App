@@ -2,9 +2,6 @@
 // VULNERABLE Login Handler
 // Security Issue #9: SQL Injection vulnerability
 
-session_start();
-require_once '../config.php';
-
 $db = getDBConnection();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -25,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['role'] = $user['role'];
             
             // VULNERABILITY: No session regeneration after login
-            header('Location: dashboard');
+            header('Location: ' . BASE_URL . 'dashboard');
             exit;
         } else {
             $error = "Invalid credentials";
@@ -42,16 +39,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Vulnerable Demo App</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
 </head>
 <body>
     <header role="banner">
         <nav role="navigation" aria-label="Main navigation">
             <h1>Vulnerable Demo Application</h1>
             <ul>
-                <li><a href="home">Home</a></li>
-                <li><a href="login" aria-current="page">Login</a></li>
-                <li><a href="register">Register</a></li>
+                <li><a href="<?php echo BASE_URL; ?>home">Home</a></li>
+                <li><a href="<?php echo BASE_URL; ?>login" aria-current="page">Login</a></li>
+                <li><a href="<?php echo BASE_URL; ?>register">Register</a></li>
             </ul>
         </nav>
     </header>
@@ -68,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <?php endif; ?>
             
             <!-- VULNERABILITY: No CSRF protection -->
-            <form method="POST" action="login" aria-labelledby="login-heading">
+            <form method="POST" action="<?php echo BASE_URL; ?>login" aria-labelledby="login-heading">
                 <div class="form-group">
                     <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required 
@@ -84,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <button type="submit" class="btn btn-primary">Login</button>
             </form>
             
-            <p>Don't have an account? <a href="register">Register here</a></p>
+            <p>Don't have an account? <a href="<?php echo BASE_URL; ?>register">Register here</a></p>
             
             <!-- VULNERABILITY: Information disclosure -->
             <div class="debug-info" style="margin-top: 20px; padding: 10px; background: #f0f0f0;">
