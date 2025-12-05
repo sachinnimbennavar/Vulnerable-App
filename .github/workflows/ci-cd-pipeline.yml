@@ -821,7 +821,9 @@ jobs:
             "$reportPath\BlackDuck-RiskReport-Build-$buildNumber.pdf" = "$baseApiUrl/blackduck/upload"
           }
 
-          foreach ($reportFile, $url in $reportsToUpload.GetEnumerator()) {
+          foreach ($item in $reportsToUpload.GetEnumerator()) {
+            $reportFile = $item.Name
+            $url = $item.Value
             if (Test-Path $reportFile) {
               $fileName = [System.IO.Path]::GetFileName($reportFile)
               Write-Host "Uploading $fileName to $url..." -ForegroundColor Yellow
