@@ -39,7 +39,7 @@ foreach ($pattern in $reports) {
         Write-Host "✓ Uploaded $fileName to dashboard" -ForegroundColor Green
       } catch {
         $errMsg = $_.Exception.Message
-        Write-Host "✗ Failed to upload $fileName: $errMsg" -ForegroundColor Red
+        Write-Host "✗ Failed to upload ${fileName}: $errMsg" -ForegroundColor Red
       }
     } else {
       Write-Host "✗ No upload endpoint configured for $fileName" -ForegroundColor DarkGray
