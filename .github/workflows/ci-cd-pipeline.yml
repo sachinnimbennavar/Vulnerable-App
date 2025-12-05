@@ -800,62 +800,57 @@ jobs:
           retention-days: 30
         continue-on-error: true
       - name: Upload Scan Reports to Dashboard
+        shell: pwsh
         run: |
-          Write-Host "Uploading scan reports to dashboard at http://localhost:3002/api..." -ForegroundColor Cyan
-          $baseUrl = "http://localhost:3002/api/upload"
-          $localReportPath = "C:\Reports\Pipeline-Reports"
-          $reports = @(
-            "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.html",
-            "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.json",
-            "$localReportPath\SonarQube-Report-Build-${{ github.run_number }}.txt",
-            "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.html",
-            "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.json",
-            "$localReportPath\ZAP-Report-Build-${{ github.run_number }}.xml",
-            "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.html",
-            "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.json",
-            "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.xml",
-            "$localReportPath\BlackDuck-RiskReport-Build-${{ github.run_number }}.pdf"
-          )
-          $failedUploads = @()
-          foreach ($report in $reports) {
-            if (Test-Path $report) {
-              Write-Host "Uploading $report..." -ForegroundColor Yellow
-              $fileName = [System.IO.Path]::GetFileName($report)
-              $form = @{
-                file = Get-Item $report
-                filename = $fileName
-                build = "${{ github.run_number }}"
-              }
-              $success = $false
-              for ($attempt = 1; $attempt -le 2; $attempt++) {
-                try {
-                  Invoke-RestMethod -Uri $baseUrl -Method Post -Form $form -TimeoutSec 30
-                  Write-Host ("✓ Uploaded " + $fileName + " to dashboard (Attempt: " + $attempt + ")") -ForegroundColor Green
-                  $success = $true
-                  break
-                } catch {
-                  $errMsg = $_.Exception.Message
-                  $fullErr = $_ | Out-String
-                  Write-Host ('✗ Failed to upload ' + $fileName + ' (Attempt: ' + $attempt + '): ' + $errMsg) -ForegroundColor Red
-                  Write-Host ('    Exception details: ' + $fullErr) -ForegroundColor DarkGray
+          Write-Host "Uploading scan reports to dashboard at http://localhost:3001/api..." -ForegroundColor Cyan
+          
+          $baseApiUrl = "http://localhost:3001/api"
+          $reportPath = "C:\Reports\Pipeline-Reports"
+          $buildNumber = "${{ github.run_number }}"
+          $failedUploads = New-Object System.Collections.Generic.List[string]
+
+          # Define the reports to upload and their corresponding endpoints
+          $reportsToUpload = @{
+            "$reportPath\SonarQube-Report-Build-$buildNumber.json" = "$baseApiUrl/sonarqube/upload"
+            "$reportPath\ZAP-Report-Build-$buildNumber.html" = "$baseApiUrl/owasp-zap/upload"
+            "$reportPath\ZAP-Report-Build-$buildNumber.json" = "$baseApiUrl/owasp-zap/upload"
+            "$reportPath\ZAP-Report-Build-$buildNumber.xml" = "$baseApiUrl/owasp-zap/upload"
+            "$reportPath\DependencyCheck-Report-Build-$buildNumber.html" = "$baseApiUrl/owasp-dependency/upload"
+            "$reportPath\DependencyCheck-Report-Build-$buildNumber.json" = "$baseApiUrl/owasp-dependency/upload"
+            "$reportPath\DependencyCheck-Report-Build-$buildNumber.xml" = "$baseApiUrl/owasp-dependency/upload"
+            "$reportPath\BlackDuck-RiskReport-Build-$buildNumber.pdf" = "$baseApiUrl/blackduck/upload"
+          }
+
+          foreach ($reportFile, $url in $reportsToUpload.GetEnumerator()) {
+            if (Test-Path $reportFile) {
+              $fileName = [System.IO.Path]::GetFileName($reportFile)
+              Write-Host "Uploading $fileName to $url..." -ForegroundColor Yellow
+              
+              try {
+                $form = @{
+                  file = Get-Item -Path $reportFile
                 }
-              }
-              if (-not $success) {
-                $failedUploads += $fileName
+                Invoke-RestMethod -Uri $url -Method Post -Form $form -TimeoutSec 60
+                Write-Host "✓ Uploaded $fileName successfully." -ForegroundColor Green
+              } catch {
+                $errMsg = $_.Exception.Response.StatusDescription
+                Write-Host "✗ Failed to upload $fileName: $errMsg" -ForegroundColor Red
+                $failedUploads.Add($fileName)
               }
             } else {
-              Write-Host ("✗ Report not found: " + $report) -ForegroundColor Red
+              Write-Host "✗ Report not found, skipping: $reportFile" -ForegroundColor Gray
             }
           }
+
+          # Final summary
           if ($failedUploads.Count -gt 0) {
-            Write-Host ("Summary: Failed to upload the following reports:") -ForegroundColor Red
+            Write-Host "`nSummary: Failed to upload the following reports:" -ForegroundColor Red
             foreach ($fail in $failedUploads) {
-              Write-Host ("  - " + $fail) -ForegroundColor Red
+              Write-Host "  - $fail" -ForegroundColor Red
             }
           } else {
-            Write-Host "✓ All available reports uploaded to dashboard." -ForegroundColor Cyan
+            Write-Host "`n✓ All available reports uploaded to dashboard successfully." -ForegroundColor Cyan
           }
-        shell: pwsh
         continue-on-error: true
 
       - name: Deployment Summary
