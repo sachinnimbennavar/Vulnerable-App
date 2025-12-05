@@ -836,7 +836,7 @@ jobs:
                 Write-Host "✓ Uploaded $fileName successfully." -ForegroundColor Green
               } catch {
                 $errMsg = $_.Exception.Response.StatusDescription
-                Write-Host "✗ Failed to upload $fileName: $errMsg" -ForegroundColor Red
+                Write-Host "✗ Failed to upload ${fileName}: $errMsg" -ForegroundColor Red
                 $failedUploads.Add($fileName)
               }
             } else {
