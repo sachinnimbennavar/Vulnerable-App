@@ -252,9 +252,7 @@ jobs:
             $depCheckArgs = @(
               "--scan", $projectPath,
               "--out", $reportPath,
-              "--format", "HTML",
               "--format", "JSON",
-              "--format", "XML",
               "--project", "Vulnerable-App",
               "--disableYarnAudit",
               "--disableNodeAudit",
@@ -274,14 +272,7 @@ jobs:
             Write-Host "✓ Dependency Check scan completed" -ForegroundColor Green
             
             # Check generated reports
-            $htmlReport = "$reportPath\dependency-check-report.html"
             $jsonReport = "$reportPath\dependency-check-report.json"
-            $xmlReport = "$reportPath\dependency-check-report.xml"
-            
-            if (Test-Path $htmlReport) {
-              $size = (Get-Item $htmlReport).Length
-              Write-Host "✓ HTML report generated: $size bytes" -ForegroundColor Green
-            }
             
             # Copy reports to local directory
             Write-Host "Copying Dependency Check reports..." -ForegroundColor Cyan
@@ -292,28 +283,12 @@ jobs:
               icacls $localReportPath /grant "NT AUTHORITY\NETWORK SERVICE:(OI)(CI)F" /T | Out-Null
             }
             
-            # Copy HTML report
-            if (Test-Path $htmlReport) {
-              $destHtml = "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.html"
-              Copy-Item $htmlReport -Destination $destHtml -Force
-              $fileSize = (Get-Item $destHtml).Length
-              Write-Host "✓ HTML report saved: $destHtml ($fileSize bytes)" -ForegroundColor Green
-            }
-            
             # Copy JSON report
             if (Test-Path $jsonReport) {
               $destJson = "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.json"
               Copy-Item $jsonReport -Destination $destJson -Force
               $fileSize = (Get-Item $destJson).Length
               Write-Host "✓ JSON report saved: $destJson ($fileSize bytes)" -ForegroundColor Green
-            }
-            
-            # Copy XML report
-            if (Test-Path $xmlReport) {
-              $destXml = "$localReportPath\DependencyCheck-Report-Build-${{ github.run_number }}.xml"
-              Copy-Item $xmlReport -Destination $destXml -Force
-              $fileSize = (Get-Item $destXml).Length
-              Write-Host "✓ XML report saved: $destXml ($fileSize bytes)" -ForegroundColor Green
             }
             
           } catch {
@@ -326,9 +301,7 @@ jobs:
         with:
           name: dependency-check-reports
           path: |
-            ${{ github.workspace }}\dependency-check-report\dependency-check-report.html
             ${{ github.workspace }}\dependency-check-report\dependency-check-report.json
-            ${{ github.workspace }}\dependency-check-report\dependency-check-report.xml
           retention-days: 30
         continue-on-error: true
 
@@ -799,6 +772,13 @@ jobs:
             C:\Reports\Pipeline-Reports\BlackDuck-RiskReport-Build-${{ github.run_number }}.pdf
           retention-days: 30
         continue-on-error: true
+      - name: List Generated Reports
+        run: |
+          Get-ChildItem -Path C:\Reports\Pipeline-Reports -Recurse | ForEach-Object {
+            Write-Host "Found report: $($_.FullName)"
+          }
+        shell: pwsh
+        continue-on-error: true
       - name: Upload Scan Reports to Dashboard
         shell: pwsh
         run: |
@@ -828,11 +808,32 @@ jobs:
                 $form = @{
                   file = Get-Item -Path $reportFile
                 }
-                Invoke-RestMethod -Uri $url -Method Post -Form $form -TimeoutSec 60
+                $response = Invoke-RestMethod -Uri $url -Method Post -Form $form -TimeoutSec 60
                 Write-Host "✓ Uploaded $fileName successfully." -ForegroundColor Green
+                Write-Host "Server Response:" -ForegroundColor Cyan
+                Write-Host ($response | ConvertTo-Json -Depth 5) -ForegroundColor Gray
               } catch {
-                $errMsg = $_.Exception.Response.StatusDescription
+                $errMsg = "No status description"
+                if ($_.Exception.Response) {
+                  $errMsg = $_.Exception.Response.StatusDescription
+                }
+                
+                $errBody = ""
+                if ($_.Exception.Response) {
+                  $stream = $_.Exception.Response.GetResponseStream()
+                  if ($stream) {
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    $errBody = $reader.ReadToEnd()
+                    $reader.Close()
+                  }
+                }
+
                 Write-Host "✗ Failed to upload ${fileName}: $errMsg" -ForegroundColor Red
+                if ($errBody) {
+                  Write-Host "Error Body: $errBody" -ForegroundColor DarkRed
+                } else {
+                  Write-Host "No error body from server." -ForegroundColor DarkRed
+                }
                 $failedUploads.Add($fileName)
               }
             } else {
@@ -844,7 +845,7 @@ jobs:
           if ($failedUploads.Count -gt 0) {
             Write-Host "`nSummary: Failed to upload the following reports:" -ForegroundColor Red
             foreach ($fail in $failedUploads) {
-              Write-Host "  - $fail" -ForegroundColor Red
+              Write-Host "  - $fail"
             }
           } else {
             Write-Host "`n✓ All available reports uploaded to dashboard successfully." -ForegroundColor Cyan
