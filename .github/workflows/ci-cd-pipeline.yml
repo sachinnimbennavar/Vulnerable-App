@@ -772,13 +772,6 @@ jobs:
             C:\Reports\Pipeline-Reports\BlackDuck-RiskReport-Build-${{ github.run_number }}.pdf
           retention-days: 30
         continue-on-error: true
-      - name: List Generated Reports
-        run: |
-          Get-ChildItem -Path C:\Reports\Pipeline-Reports -Recurse | ForEach-Object {
-            Write-Host "Found report: $($_.FullName)"
-          }
-        shell: pwsh
-        continue-on-error: true
       - name: Upload Scan Reports to Dashboard
         shell: pwsh
         run: |
