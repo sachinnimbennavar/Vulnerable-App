@@ -792,7 +792,7 @@ jobs:
           # Define the reports to upload and their corresponding endpoints
           $reportsToUpload = @{
             "$reportPath\SonarQube-Report-Build-$buildNumber.json" = "$baseApiUrl/sonarqube/upload"
-            "$reportPath\ZAP-Report-Build-$buildNumber.html" = "$baseApiUrl/owasp-zap/upload"
+            "$reportPath\ZAP-Report-Build-$buildNumber.json" = "$baseApiUrl/owasp-zap/upload"
             "$reportPath\DependencyCheck-Report-Build-$buildNumber.json" = "$baseApiUrl/owasp-dependency/upload"
             "$reportPath\BlackDuck-RiskReport-Build-$buildNumber.pdf" = "$baseApiUrl/blackduck/upload"
           }
