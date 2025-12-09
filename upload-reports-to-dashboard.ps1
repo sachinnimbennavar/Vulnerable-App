@@ -19,9 +19,9 @@ foreach ($pattern in $reports) {
     $uploadUrl = ""
     if ($fileName -like "SonarQube-Report-Build-*.json") {
       $uploadUrl = "$apiBaseUrl/sonarqube/upload"
-    } elseif ($fileName -like "ZAP-Report-Build-*") {
+    } elseif ($fileName -like "ZAP-Report-Build-*.json") {
       $uploadUrl = "$apiBaseUrl/owasp-zap/upload"
-    } elseif ($fileName -like "DependencyCheck-Report-Build-*") {
+    } elseif ($fileName -like "DependencyCheck-Report-Build-*.json") {
       $uploadUrl = "$apiBaseUrl/owasp-dependency/upload"
     } elseif ($fileName -like "BlackDuck-RiskReport-Build-*.pdf") {
       $uploadUrl = "$apiBaseUrl/blackduck/upload"
