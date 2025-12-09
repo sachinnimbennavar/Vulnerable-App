@@ -246,7 +246,6 @@ jobs:
             Write-Host "Removing stale Dependency Check lock file..." -ForegroundColor Yellow
             Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
           }
-
           try {
             # Build command arguments
             $depCheckArgs = @(
@@ -781,7 +780,6 @@ jobs:
           $reportPath = "C:\Reports\Pipeline-Reports"
           $buildNumber = "${{ github.run_number }}"
           $failedUploads = New-Object System.Collections.Generic.List[string]
-
           # Define the reports to upload and their corresponding endpoints
           $reportsToUpload = @{
             "$reportPath\BlackDuck-RiskReport-Build-$buildNumber.pdf" = "$baseApiUrl/blackduck/upload"
@@ -789,7 +787,6 @@ jobs:
             "$reportPath\ZAP-Report-Build-$buildNumber.json" = "$baseApiUrl/owasp-zap/upload"
             "$reportPath\SonarQube-Report-Build-$buildNumber.json" = "$baseApiUrl/sonarqube/upload"
           }
-
           foreach ($item in $reportsToUpload.GetEnumerator()) {
             $reportFile = $item.Name
             $url = $item.Value
@@ -820,7 +817,6 @@ jobs:
                     $reader.Close()
                   }
                 }
-
                 Write-Host "✗ Failed to upload ${fileName}: $errMsg" -ForegroundColor Red
                 if ($errBody) {
                   Write-Host "Error Body: $errBody" -ForegroundColor DarkRed
@@ -833,7 +829,6 @@ jobs:
               Write-Host "✗ Report not found, skipping: $reportFile" -ForegroundColor Gray
             }
           }
-
           # Final summary
           if ($failedUploads.Count -gt 0) {
             Write-Host "`nSummary: Failed to upload the following reports:" -ForegroundColor Red
