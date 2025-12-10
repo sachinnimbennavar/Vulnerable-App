@@ -265,6 +265,10 @@ jobs:
               $depCheckArgs += $nvdApiKey
             }
             
+            # Set Java memory options to prevent out-of-memory errors
+            Write-Host "Increasing Java memory for Dependency Check: 2GB" -ForegroundColor Yellow
+            $env:JAVA_OPTS = "-Xms512m -Xmx2g"
+            
             # Run dependency check
             & "$depCheckPath\bin\dependency-check.bat" @depCheckArgs
             
