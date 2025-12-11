@@ -833,17 +833,19 @@ jobs:
               try {
                 $form = @{
                   file = Get-Item -Path $reportFile
+                  filename = $fileName
+                  build = $buildNumber
                 }
-                $response = Invoke-RestMethod -Uri $url -Method Post -Form $form -TimeoutSec 60
+                $responseObject = Invoke-RestMethod -Uri $url -Method Post -Form $form -TimeoutSec 60
                 
-                $responseJson = $response | ConvertTo-Json -Depth 5
                 Write-Host "Server Response:" -ForegroundColor Cyan
-                Write-Host $responseJson -ForegroundColor Gray
+                Write-Host ($responseObject | ConvertTo-Json -Depth 5) -ForegroundColor Gray
                 
-                if ($responseJson -like '*Report uploaded successfully*') {
+                if ($responseObject.success -eq $true) {
                   Write-Host "✓ Uploaded $fileName successfully and server confirmed." -ForegroundColor Green
                 } else {
-                  Write-Host "✗ Upload of $fileName failed. Server response did not indicate success." -ForegroundColor Red
+                  $errorMessage = $responseObject.message | Out-String
+                  Write-Host "✗ Upload of $fileName failed. Server message: $errorMessage" -ForegroundColor Red
                   $failedUploads.Add($fileName)
                 }
               } catch {
