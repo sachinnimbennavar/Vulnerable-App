@@ -549,7 +549,7 @@ jobs:
             $scanId = $scanResult.scan
             
             # Wait for active scan to complete (max 2 minutes for quick results)
-            $scanMaxWait = 120
+            $scanMaxWait = 300
             $scanWaited = 0
             do {
               Start-Sleep -Seconds 5
@@ -835,9 +835,17 @@ jobs:
                   file = Get-Item -Path $reportFile
                 }
                 $response = Invoke-RestMethod -Uri $url -Method Post -Form $form -TimeoutSec 60
-                Write-Host "✓ Uploaded $fileName successfully." -ForegroundColor Green
+                
+                $responseJson = $response | ConvertTo-Json -Depth 5
                 Write-Host "Server Response:" -ForegroundColor Cyan
-                Write-Host ($response | ConvertTo-Json -Depth 5) -ForegroundColor Gray
+                Write-Host $responseJson -ForegroundColor Gray
+                
+                if ($responseJson -like '*Report uploaded successfully*') {
+                  Write-Host "✓ Uploaded $fileName successfully and server confirmed." -ForegroundColor Green
+                } else {
+                  Write-Host "✗ Upload of $fileName failed. Server response did not indicate success." -ForegroundColor Red
+                  $failedUploads.Add($fileName)
+                }
               } catch {
                 $errMsg = "No status description"
                 if ($_.Exception.Response) {
