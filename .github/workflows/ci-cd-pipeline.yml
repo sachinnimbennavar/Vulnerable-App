@@ -566,21 +566,48 @@ jobs:
             
             Write-Host "✓ Active scan complete" -ForegroundColor Green
             
+            # Generate reports and verify creation
+            Write-Host "Generating ZAP reports..." -ForegroundColor Cyan
+            
             # Generate HTML report
-            Write-Host "Generating reports..." -ForegroundColor Yellow
-            $reportUrl = "${baseUrl}/OTHER/core/other/htmlreport/?apikey=${zapApiKey}"
-            Invoke-RestMethod -Uri $reportUrl -Method Get -OutFile $reportPath
+            try {
+              $reportUrl = "${baseUrl}/OTHER/core/other/htmlreport/?apikey=${zapApiKey}"
+              Invoke-RestMethod -Uri $reportUrl -Method Get -OutFile $reportPath
+              if (Test-Path $reportPath) {
+                Write-Host "✓ HTML report created at $reportPath" -ForegroundColor Green
+              } else {
+                Write-Host "✗ Failed to create HTML report at $reportPath" -ForegroundColor Red
+              }
+            } catch {
+              Write-Host "✗ Error generating HTML report: $($_.Exception.Message)" -ForegroundColor Red
+            }
             
             # Generate JSON report
-            $jsonUrl = "${baseUrl}/JSON/core/view/alerts/?apikey=${zapApiKey}"
-            $alerts = Invoke-RestMethod -Uri $jsonUrl -Method Get
-            $alerts | ConvertTo-Json -Depth 10 | Out-File -FilePath $jsonReportPath -Encoding UTF8
+            try {
+              $jsonUrl = "${baseUrl}/JSON/core/view/alerts/?apikey=${zapApiKey}"
+              $alerts = Invoke-RestMethod -Uri $jsonUrl -Method Get
+              $alerts | ConvertTo-Json -Depth 10 | Out-File -FilePath $jsonReportPath -Encoding UTF8
+              if (Test-Path $jsonReportPath) {
+                Write-Host "✓ JSON report created at $jsonReportPath" -ForegroundColor Green
+              } else {
+                Write-Host "✗ Failed to create JSON report at $jsonReportPath" -ForegroundColor Red
+              }
+            } catch {
+              Write-Host "✗ Error generating JSON report: $($_.Exception.Message)" -ForegroundColor Red
+            }
             
             # Generate XML report
-            $xmlUrl = "${baseUrl}/OTHER/core/other/xmlreport/?apikey=${zapApiKey}"
-            Invoke-RestMethod -Uri $xmlUrl -Method Get -OutFile $xmlReportPath
-            
-            Write-Host "✓ Reports generated" -ForegroundColor Green
+            try {
+              $xmlUrl = "${baseUrl}/OTHER/core/other/xmlreport/?apikey=${zapApiKey}"
+              Invoke-RestMethod -Uri $xmlUrl -Method Get -OutFile $xmlReportPath
+              if (Test-Path $xmlReportPath) {
+                Write-Host "✓ XML report created at $xmlReportPath" -ForegroundColor Green
+              } else {
+                Write-Host "✗ Failed to create XML report at $xmlReportPath" -ForegroundColor Red
+              }
+            } catch {
+              Write-Host "✗ Error generating XML report: $($_.Exception.Message)" -ForegroundColor Red
+            }
             
             # Get summary
             $alertsUrl = "${baseUrl}/JSON/core/view/numberOfAlerts/?apikey=${zapApiKey}"
