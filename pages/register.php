@@ -12,13 +12,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'];
     $email = $_POST['email'];
     
-    // VULNERABILITY: No password strength validation
-    // VULNERABILITY: Storing passwords in plain text
-    // VULNERABILITY: SQL Injection via string concatenation
-    $query = "INSERT INTO users (username, password, email) VALUES ('$username', '$password', '$email')";
+    // FIX: Hash password securely
+    $hashedPassword = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+    
+    // FIX: Use prepared statements to prevent SQL Injection
+    $query = "INSERT INTO users (username, password, email) VALUES (:username, :password, :email)";
     
     try {
-        $db->exec($query);
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':username', $username);
+        $stmt->bindParam(':password', $hashedPassword);
+        $stmt->bindParam(':email', $email);
+        $stmt->execute();
+
         header('Location: login');
         exit;
     } catch (PDOException $e) {

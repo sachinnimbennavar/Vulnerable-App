@@ -6,6 +6,7 @@
     # Allow direct access to all files (VULNERABLE - exposes sensitive files)
     # Options +Indexes
     
+    RewriteCond %{REQUEST_URI} !^/assets/
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]

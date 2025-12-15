@@ -20,7 +20,7 @@ Stop-Website -Name "Default Web Site" -ErrorAction SilentlyContinue
 
 # Website details
 $siteName = "vulnerable-app"
-$physicalPath = "c:\SSDLC\ssdlc-demo\deleteaftetest\Vulnerable-App"
+$physicalPath = "c:\SSDLC\ssdlc-demo\ssdlc\Vulnerable-App"
 $port = 80 # You can change this to 80 if that port is free on your system
 
 # Remove existing site if it exists to ensure a clean setup

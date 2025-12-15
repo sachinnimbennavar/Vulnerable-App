@@ -1,4 +1,5 @@
 <?php
+session_start();
 // VULNERABLE Login Handler
 // Security Issue #9: SQL Injection vulnerability
 
@@ -7,21 +8,25 @@ $db = getDBConnection();
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'];
     $password = $_POST['password'];
-    
-    // VULNERABILITY: SQL Injection - direct string concatenation
-    $query = "SELECT * FROM users WHERE username = '$username' AND password = '$password'";
+
+    // FIX: Use prepared statements to prevent SQL Injection
+    $query = "SELECT * FROM users WHERE username = :username";
     
     try {
-        $stmt = $db->query($query);
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':username', $username, PDO::PARAM_STR);
+        $stmt->execute();
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        if ($user) {
-            // VULNERABILITY: Storing sensitive data in session without encryption
+        // FIX: Verify password against stored hash
+        if ($user && password_verify($password, $user['password'])) {
+            // FIX: Regenerate session ID to prevent session fixation
+            session_regenerate_id(true);
+
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
             
-            // VULNERABILITY: No session regeneration after login
             header('Location: ' . BASE_URL . 'dashboard');
             exit;
         } else {

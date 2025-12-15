@@ -14,15 +14,18 @@ $db = getDBConnection();
 $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
 $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Guest';
 
-// VULNERABILITY: SQL Injection in search functionality
+// FIX: Use prepared statements to prevent SQL Injection in search
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 if ($search) {
-    $query = "SELECT * FROM posts WHERE title LIKE '%$search%' OR content LIKE '%$search%'";
+    $query = "SELECT * FROM posts WHERE title LIKE :search OR content LIKE :search";
+    $stmt = $db->prepare($query);
+    $stmt->bindValue(':search', '%' . $search . '%');
+    $stmt->execute();
+    $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } else {
     $query = "SELECT * FROM posts ORDER BY created_at DESC LIMIT 10";
+    $posts = $db->query($query)->fetchAll(PDO::FETCH_ASSOC);
 }
-
-$posts = $db->query($query)->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -58,7 +61,7 @@ $posts = $db->query($query)->fetchAll(PDO::FETCH_ASSOC);
             <form method="GET" action="dashboard" class="search-form" role="search">
                 <label for="search">Search Posts:</label>
                 <input type="text" id="search" name="search" 
-                       value="<?php echo $search; ?>" 
+                       value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>" 
                        placeholder="Search...">
                 <button type="submit">Search</button>
             </form>
@@ -66,10 +69,10 @@ $posts = $db->query($query)->fetchAll(PDO::FETCH_ASSOC);
             <div class="posts-container" role="list">
                 <?php foreach ($posts as $post): ?>
                     <article class="post" role="listitem">
-                        <!-- VULNERABILITY: XSS - No output encoding -->
-                        <h3><?php echo $post['title']; ?></h3>
+                        <!-- FIX: Encode output to prevent XSS -->
+                        <h3><?php echo htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
                         <div class="post-content">
-                            <?php echo $post['content']; ?>
+                            <?php echo htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8'); ?>
                         </div>
                         <p class="post-meta">
                             Posted on <?php echo $post['created_at']; ?>
