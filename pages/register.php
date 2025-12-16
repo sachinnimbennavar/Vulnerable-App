@@ -2,9 +2,6 @@
 // VULNERABLE Registration Handler
 // Security Issue #10: No input validation
 
-session_start();
-require_once '../config.php';
-
 $db = getDBConnection();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -25,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->bindParam(':email', $email);
         $stmt->execute();
 
-        header('Location: login');
+        header('Location: ' . BASE_URL . 'login');
         exit;
     } catch (PDOException $e) {
         $error = "Registration failed: " . $e->getMessage();
@@ -38,16 +35,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - Vulnerable Demo App</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
 </head>
 <body>
     <header role="banner">
         <nav role="navigation" aria-label="Main navigation">
             <h1>Vulnerable Demo Application</h1>
             <ul>
-                <li><a href="home">Home</a></li>
-                <li><a href="login">Login</a></li>
-                <li><a href="register" aria-current="page">Register</a></li>
+                <li><a href="<?php echo BASE_URL; ?>home">Home</a></li>
+                <li><a href="<?php echo BASE_URL; ?>login">Login</a></li>
+                <li><a href="<?php echo BASE_URL; ?>register" aria-current="page">Register</a></li>
             </ul>
         </nav>
     </header>
@@ -62,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
             <?php endif; ?>
             
-            <form method="POST" action="register" aria-labelledby="register-heading">
+            <form method="POST" action="<?php echo BASE_URL; ?>register" aria-labelledby="register-heading">
                 <div class="form-group">
                     <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required 
@@ -84,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <button type="submit" class="btn btn-primary">Register</button>
             </form>
             
-            <p>Already have an account? <a href="login">Login here</a></p>
+            <p>Already have an account? <a href="<?php echo BASE_URL; ?>login">Login here</a></p>
         </section>
     </main>
     

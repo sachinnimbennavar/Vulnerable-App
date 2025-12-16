@@ -1,5 +1,4 @@
 <?php
-session_start();
 // VULNERABLE Login Handler
 // Security Issue #9: SQL Injection vulnerability
 
@@ -59,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </header>
     
     <main role="main" id="main-content">
-        <section class="login-container" aria-labelledby="login-heading">
+        <section class.login-container" aria-labelledby="login-heading">
             <h2 id="login-heading">Login</h2>
             
             <?php if (isset($error)): ?>
