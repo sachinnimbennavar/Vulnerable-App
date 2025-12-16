@@ -5,11 +5,11 @@
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'vulnerable_app');
 define('DB_USER', 'admin');
-define('DB_PASSWORD', 'admin123'); // VULNERABILITY: Hardcoded password
+define('DB_PASSWORD', getenv('DB_PASSWORD')); // VULNERABILITY: Hardcoded password
 define('BASE_URL', '/');
 
 // Security Issue #2: Hardcoded API keys
-define('API_SECRET_KEY', 'sk_live_4eC39HqLyjWDarjtT1zdp7dc'); // VULNERABILITY: Exposed API key
+define('API_SECRET_KEY', getenv('API_SECRET_KEY')); // VULNERABILITY: Exposed API key
 define('JWT_SECRET', 'my_super_secret_jwt_key_12345'); // VULNERABILITY: Weak secret
 
 // Security Issue #3: Debug mode enabled in production
@@ -67,9 +67,10 @@ function initDB() {
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($result['count'] == 0) {
-        // VULNERABILITY: Storing password in plain text
+        // FIX: Hash the default admin password
+        $hashedPassword = password_hash('admin123', PASSWORD_BCRYPT, ['cost' => 12]);
         $db->exec("INSERT INTO users (username, password, email, role) VALUES 
-                   ('admin', 'admin123', 'admin@example.com', 'admin')");
+                   ('admin', '$hashedPassword', 'admin@example.com', 'admin')");
     }
     
     return $db;
