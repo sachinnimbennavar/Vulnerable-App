@@ -5,6 +5,11 @@
 $db = getDBConnection();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // CSRF token validation
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die('CSRF token validation failed');
+    }
+
     $username = $_POST['username'];
     $password = $_POST['password'];
     $email = $_POST['email'];
@@ -55,11 +60,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             <?php if (isset($error)): ?>
                 <div class="error" role="alert" aria-live="polite">
-                    <?php echo $error; ?>
+                    <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
                 </div>
             <?php endif; ?>
             
             <form method="POST" action="<?php echo BASE_URL; ?>register" aria-labelledby="register-heading">
+                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                 <div class="form-group">
                     <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required 

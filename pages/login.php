@@ -5,6 +5,11 @@
 $db = getDBConnection();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // CSRF token validation
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die('CSRF token validation failed');
+    }
+
     $username = $_POST['username'];
     $password = $_POST['password'];
 
@@ -21,6 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($user && password_verify($password, $user['password'])) {
             // FIX: Regenerate session ID to prevent session fixation
             session_regenerate_id(true);
+            
+            // Regenerate CSRF token after successful login
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
@@ -64,12 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <?php if (isset($error)): ?>
                 <div class="error" role="alert" aria-live="polite">
                     <!-- VULNERABILITY: XSS - No output encoding -->
-                    <?php echo $error; ?>
+                    <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
                 </div>
             <?php endif; ?>
             
-            <!-- VULNERABILITY: No CSRF protection -->
             <form method="POST" action="<?php echo BASE_URL; ?>login" aria-labelledby="login-heading">
+                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                 <div class="form-group">
                     <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required 

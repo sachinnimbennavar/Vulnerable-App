@@ -1,33 +1,52 @@
-<?php
-// VULNERABLE File Upload Handler
-// Security Issue #14: Unrestricted file upload
-
-session_start();
-require_once '../config.php';
-
-$db = getDBConnection();
-// Security Issue #15: Path traversal
-
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file'])) {
+    // CSRF token validation
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die('CSRF token validation failed');
+    }
+
     $target_dir = "uploads/";
     
-    // VULNERABILITY: No directory existence check or creation with proper permissions
     if (!file_exists($target_dir)) {
-        mkdir($target_dir, 0777, true);
+        mkdir($target_dir, 0755, true); // Use secure permissions
     }
     
-    // VULNERABILITY: No file type validation
-    // VULNERABILITY: Using user-supplied filename directly
-    $filename = $_FILES['file']['name'];
-    $target_file = $target_dir . $filename;
-    
-    // VULNERABILITY: No file size limit
-    // VULNERABILITY: Allows executable files
-    if (move_uploaded_file($_FILES['file']['tmp_name'], $target_file)) {
-        $success = "File uploaded successfully: " . $filename;
+    // --- BEGIN SECURE UPLOAD LOGIC ---
+
+    // Whitelist allowed extensions
+    $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'pdf'];
+    $file_extension = strtolower(pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION));
+
+    if (!in_array($file_extension, $allowed_extensions)) {
+        $error = "Upload failed: Invalid file type. Only JPG, PNG, GIF, and PDF are allowed.";
+    }
+    // Check file size (5MB max)
+    elseif ($_FILES['file']['size'] > 5 * 1024 * 1024) {
+        $error = "Upload failed: File is too large (Max 5MB).";
     } else {
-        $error = "Failed to upload file";
+        // Verify MIME type
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $_FILES['file']['tmp_name']);
+        finfo_close($finfo);
+        
+        $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+
+        if (!in_array($mime, $allowed_mimes)) {
+            $error = "Upload failed: Invalid MIME type detected.";
+        } else {
+            // Generate random, sanitized filename
+            $new_filename = bin2hex(random_bytes(16)) . '.' . $file_extension;
+            $target_file = $target_dir . $new_filename;
+
+            // Move the file
+            if (move_uploaded_file($_FILES['file']['tmp_name'], $target_file)) {
+                chmod($target_file, 0644); // Set secure permissions
+                $success = "File uploaded successfully: " . htmlspecialchars($new_filename);
+            } else {
+                $error = "Failed to move uploaded file.";
+            }
+        }
     }
+    // --- END SECURE UPLOAD LOGIC ---
 }
 ?>
 <!DOCTYPE html>
@@ -36,17 +55,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload - Vulnerable Demo App</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
 </head>
 <body>
     <header role="banner">
         <nav role="navigation" aria-label="Main navigation">
             <h1>Vulnerable Demo Application</h1>
             <ul>
-                <li><a href="home">Home</a></li>
-                <li><a href="dashboard">Dashboard</a></li>
-                <li><a href="upload" aria-current="page">Upload</a></li>
-                <li><a href="logout">Logout</a></li>
+                <li><a href="<?php echo BASE_URL; ?>home">Home</a></li>
+                <li><a href="<?php echo BASE_URL; ?>dashboard">Dashboard</a></li>
+                <li><a href="<?php echo BASE_URL; ?>upload" aria-current="page">Upload</a></li>
+                <li><a href="<?php echo BASE_URL; ?>logout">Logout</a></li>
             </ul>
         </nav>
     </header>
@@ -63,11 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file'])) {
             
             <?php if (isset($error)): ?>
                 <div class="error" role="alert" aria-live="polite">
-                    <?php echo $error; ?>
+                    <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
                 </div>
             <?php endif; ?>
             
             <form method="POST" enctype="multipart/form-data" aria-labelledby="upload-heading">
+                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                 <div class="form-group">
                     <label for="file">Choose file:</label>
                     <input type="file" id="file" name="file" required aria-required="true">
@@ -83,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file'])) {
                 foreach ($files as $file) {
                     if ($file != '.' && $file != '..') {
                         // VULNERABILITY: Direct file access
-                        echo "<p><a href='uploads/$file'>$file</a></p>";
+                        echo "<p><a href='uploads/" . htmlspecialchars($file) . "'>" . htmlspecialchars($file) . "</a></p>";
                     }
                 }
                 ?>

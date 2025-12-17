@@ -1,23 +1,22 @@
 <?php
-// VULNERABLE Dashboard
-// Security Issue #11: No authentication check
-// Security Issue #12: Insecure direct object reference (IDOR)
-
-session_start();
-require_once '../config.php';
+// SECURE Dashboard
 
 $db = getDBConnection();
 
-// VULNERABILITY: Missing authentication
-// Should check if user is logged in, but doesn't
+// Enforce authentication
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ' . BASE_URL . 'login');
+    exit;
+}
 
-$user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
-$username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Guest';
+$user_id = $_SESSION['user_id'];
+$username = $_SESSION['username'];
 
-// FIX: Use prepared statements to prevent SQL Injection in search
+// Use prepared statements to prevent SQL Injection in search
 $search = isset($_GET['search']) ? $_GET['search'] : '';
+$posts = [];
 if ($search) {
-    $query = "SELECT * FROM posts WHERE title LIKE :search OR content LIKE :search";
+    $query = "SELECT * FROM posts WHERE title LIKE :search OR content LIKE :search ORDER BY created_at DESC";
     $stmt = $db->prepare($query);
     $stmt->bindValue(':search', '%' . $search . '%');
     $stmt->execute();
@@ -33,22 +32,18 @@ if ($search) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Vulnerable Demo App</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
 </head>
 <body>
     <header role="banner">
         <nav role="navigation" aria-label="Main navigation">
             <h1>Vulnerable Demo Application</h1>
             <ul>
-                <li><a href="home">Home</a></li>
-                <li><a href="dashboard" aria-current="page">Dashboard</a></li>
-                <li><a href="profile">Profile</a></li>
-                <li><a href="upload">Upload</a></li>
-                <?php if ($user_id): ?>
-                    <li><a href="logout">Logout (<?php echo $username; ?>)</a></li>
-                <?php else: ?>
-                    <li><a href="login">Login</a></li>
-                <?php endif; ?>
+                <li><a href="<?php echo BASE_URL; ?>home">Home</a></li>
+                <li><a href="<?php echo BASE_URL; ?>dashboard" aria-current="page">Dashboard</a></li>
+                <li><a href="<?php echo BASE_URL; ?>profile">Profile</a></li>
+                <li><a href="<?php echo BASE_URL; ?>upload">Upload</a></li>
+                <li><a href="<?php echo BASE_URL; ?>logout">Logout (<?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?>)</a></li>
             </ul>
         </nav>
     </header>
@@ -57,8 +52,7 @@ if ($search) {
         <section aria-labelledby="dashboard-heading">
             <h2 id="dashboard-heading">Dashboard</h2>
             
-            <!-- VULNERABILITY: XSS in search -->
-            <form method="GET" action="dashboard" class="search-form" role="search">
+            <form method="GET" action="<?php echo BASE_URL; ?>dashboard" class="search-form" role="search">
                 <label for="search">Search Posts:</label>
                 <input type="text" id="search" name="search" 
                        value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>" 
@@ -67,36 +61,38 @@ if ($search) {
             </form>
             
             <div class="posts-container" role="list">
-                <?php foreach ($posts as $post): ?>
-                    <article class="post" role="listitem">
-                        <!-- FIX: Encode output to prevent XSS -->
-                        <h3><?php echo htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
-                        <div class="post-content">
-                            <?php echo htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8'); ?>
-                        </div>
-                        <p class="post-meta">
-                            Posted on <?php echo $post['created_at']; ?>
-                        </p>
-                    </article>
-                <?php endforeach; ?>
+                <?php if (!empty($posts)): ?>
+                    <?php foreach ($posts as $post): ?>
+                        <article class="post" role="listitem">
+                            <h3><?php echo htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                            <div class="post-content">
+                                <?php echo htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8'); ?>
+                            </div>
+                            <p class="post-meta">
+                                Posted on <?php echo $post['created_at']; ?>
+                            </p>
+                        </article>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <p>No posts found.</p>
+                <?php endif; ?>
             </div>
             
-            <?php if ($user_id): ?>
-                <section class="new-post" aria-labelledby="new-post-heading">
-                    <h3 id="new-post-heading">Create New Post</h3>
-                    <form method="POST" action="post">
-                        <div class="form-group">
-                            <label for="title">Title:</label>
-                            <input type="text" id="title" name="title" required aria-required="true">
-                        </div>
-                        <div class="form-group">
-                            <label for="content">Content:</label>
-                            <textarea id="content" name="content" rows="5" required aria-required="true"></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Post</button>
-                    </form>
-                </section>
-            <?php endif; ?>
+            <section class="new-post" aria-labelledby="new-post-heading">
+                <h3 id="new-post-heading">Create New Post</h3>
+                <form method="POST" action="<?php echo BASE_URL; ?>post">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                    <div class="form-group">
+                        <label for="title">Title:</label>
+                        <input type="text" id="title" name="title" required aria-required="true">
+                    </div>
+                    <div class="form-group">
+                        <label for="content">Content:</label>
+                        <textarea id="content" name="content" rows="5" required aria-required="true"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Post</button>
+                </form>
+            </section>
         </section>
     </main>
     

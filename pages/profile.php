@@ -1,17 +1,36 @@
 <?php
-// VULNERABLE Profile Page
-// Security Issue #16: IDOR vulnerability
-
-session_start();
-require_once '../config.php';
+// SECURE Profile Page
 
 $db = getDBConnection();
 
-$profile_id = isset($_GET['id']) ? $_GET['id'] : $_SESSION['user_id'];
+// Ensure user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ' . BASE_URL . 'login');
+    exit;
+}
 
-// VULNERABILITY: No authorization check - anyone can view any profile
-$query = "SELECT * FROM users WHERE id = $profile_id";
-$user = $db->query($query)->fetch(PDO::FETCH_ASSOC);
+// Determine the profile ID to view. Default to the logged-in user.
+$profile_id = isset($_GET['id']) ? (int)$_GET['id'] : $_SESSION['user_id'];
+$user = null;
+$error = null;
+
+// Authorization check: Allow if it's the user's own profile or if the user is an admin.
+if ($profile_id !== $_SESSION['user_id'] && (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin')) {
+    // Use a generic message to avoid disclosing user existence
+    $error = "Profile not found or you don't have permission to view it.";
+} else {
+    // Fetch profile data using a prepared statement to prevent SQLi.
+    // Exclude the password field for security.
+    $query = "SELECT id, username, email, role, created_at FROM users WHERE id = :id";
+    $stmt = $db->prepare($query);
+    $stmt->bindParam(':id', $profile_id, PDO::PARAM_INT);
+    $stmt->execute();
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        $error = "Profile not found.";
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -19,17 +38,17 @@ $user = $db->query($query)->fetch(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile - Vulnerable Demo App</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
 </head>
 <body>
     <header role="banner">
         <nav role="navigation" aria-label="Main navigation">
             <h1>Vulnerable Demo Application</h1>
             <ul>
-                <li><a href="home">Home</a></li>
-                <li><a href="dashboard">Dashboard</a></li>
-                <li><a href="profile" aria-current="page">Profile</a></li>
-                <li><a href="logout">Logout</a></li>
+                <li><a href="<?php echo BASE_URL; ?>home">Home</a></li>
+                <li><a href="<?php echo BASE_URL; ?>dashboard">Dashboard</a></li>
+                <li><a href="<?php echo BASE_URL; ?>profile" aria-current="page">Profile</a></li>
+                <li><a href="<?php echo BASE_URL; ?>logout">Logout</a></li>
             </ul>
         </nav>
     </header>
@@ -40,15 +59,13 @@ $user = $db->query($query)->fetch(PDO::FETCH_ASSOC);
             
             <?php if ($user): ?>
                 <div class="profile-info">
-                    <p><strong>Username:</strong> <?php echo $user['username']; ?></p>
-                    <p><strong>Email:</strong> <?php echo $user['email']; ?></p>
-                    <p><strong>Role:</strong> <?php echo $user['role']; ?></p>
-                    <!-- VULNERABILITY: Exposing password -->
-                    <p><strong>Password:</strong> <?php echo $user['password']; ?></p>
-                    <p><strong>Member since:</strong> <?php echo $user['created_at']; ?></p>
+                    <p><strong>Username:</strong> <?php echo htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p><strong>Email:</strong> <?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p><strong>Role:</strong> <?php echo htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p><strong>Member since:</strong> <?php echo htmlspecialchars($user['created_at'], ENT_QUOTES, 'UTF-8'); ?></p>
                 </div>
             <?php else: ?>
-                <p>User not found</p>
+                <div class="error" role="alert"><?php echo $error ?? 'User not found'; ?></div>
             <?php endif; ?>
         </section>
     </main>

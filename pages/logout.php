@@ -3,6 +3,6 @@
 
 session_start();
 session_destroy();
-header('Location: home');
+header('Location: /vulnerable-app/home');
 exit;
 ?>

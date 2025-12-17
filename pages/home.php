@@ -4,17 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome - Vulnerable Demo App</title>
-    <base href="<?php echo BASE_URL; ?>">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
 </head>
 <body>
     <header role="banner">
         <nav role="navigation" aria-label="Main navigation">
             <h1>Vulnerable Demo Application</h1>
             <ul>
-                <li><a href="home" aria-current="page">Home</a></li>
-                <li><a href="login">Login</a></li>
-                <li><a href="register">Register</a></li>
+                <li><a href="<?php echo BASE_URL; ?>home" aria-current="page">Home</a></li>
+                <li><a href="<?php echo BASE_URL; ?>login">Login</a></li>
+                <li><a href="<?php echo BASE_URL; ?>register">Register</a></li>
             </ul>
         </nav>
     </header>

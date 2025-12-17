@@ -3,12 +3,12 @@
     "description": "Vulnerable monolithic web application for SSDLC demonstration",
     "type": "project",
     "require": {
-        "php": ">=7.2.0",
-        "monolog/monolog": "1.23.0",
-        "symfony/yaml": "3.4.0",
-        "twig/twig": "1.42.0",
-        "doctrine/dbal": "2.9.0",
-        "guzzlehttp/guzzle": "6.3.0"
+        "php": ">=8.0",
+        "monolog/monolog": "^3.5",
+        "symfony/yaml": "^6.4",
+        "twig/twig": "^3.8",
+        "doctrine/dbal": "^3.0",
+        "guzzlehttp/guzzle": "^7.0"
     },
     "autoload": {
         "psr-4": {

@@ -22,17 +22,17 @@ $users = $db->query("SELECT * FROM users")->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Vulnerable Demo App</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="/vulnerable-app/assets/css/style.css">
 </head>
 <body>
     <header role="banner">
         <nav role="navigation" aria-label="Main navigation">
             <h1>Admin Panel</h1>
             <ul>
-                <li><a href="home">Home</a></li>
-                <li><a href="dashboard">Dashboard</a></li>
-                <li><a href="admin" aria-current="page">Admin</a></li>
-                <li><a href="logout">Logout</a></li>
+                <li><a href="/vulnerable-app/home">Home</a></li>
+                <li><a href="/vulnerable-app/dashboard">Dashboard</a></li>
+                <li><a href="/vulnerable-app/admin" aria-current="page">Admin</a></li>
+                <li><a href="/vulnerable-app/logout">Logout</a></li>
             </ul>
         </nav>
     </header>
