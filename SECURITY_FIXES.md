@@ -352,6 +352,8 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
 
 ### 12. Weak Authentication
 
+**Status: Fixed**
+
 **Fixed Authentication Flow**:
 ```php
 // config_secure.php
@@ -444,10 +446,9 @@ $('.message-container').html(escapeHtml(message));
 
 ### 15. Update jQuery
 
-**Vulnerable Version**:
-```html
-<script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
-```
+**Status: Fixed**
+
+
 
 **Fixed Version**:
 ```html

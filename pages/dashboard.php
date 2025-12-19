@@ -101,7 +101,9 @@ if ($search) {
     </footer>
     
     <!-- VULNERABILITY: Loading vulnerable JavaScript library -->
-    <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" 
+        integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs" 
+        crossorigin="anonymous"></script>
     <script src="assets/js/app.js"></script>
 </body>
 </html>
