@@ -1,0 +1,27 @@
+{{- if .Values.zap.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zap
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zap
+  template:
+    metadata:
+      labels:
+        app: zap
+    spec:
+      containers:
+        - name: zap
+          image: {{ .Values.zap.image }}
+          ports:
+            - containerPort: {{ .Values.zap.port }}
+          volumeMounts:
+            - name: zap-data
+              mountPath: {{ .Values.zap.dataPath }}
+      volumes:
+        - name: zap-data
+          emptyDir: {}
+{{- end }}

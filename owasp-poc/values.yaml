@@ -1,0 +1,17 @@
+zap:
+  enabled: true
+  image: owasp/zap2docker-stable
+  port: 8080
+  dataPath: /zap/wrk
+
+dependencyCheck:
+  enabled: true
+  image: owasp/dependency-check
+  port: 8081
+  dataPath: /usr/share/dependency-check/data
+
+threatDragon:
+  enabled: true
+  image: owasp/threat-dragon:v1.6.1
+  port: 8082
+  dataPath: /app/data

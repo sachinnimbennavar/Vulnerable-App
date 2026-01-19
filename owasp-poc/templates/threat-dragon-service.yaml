@@ -1,0 +1,13 @@
+{{- if .Values.threatDragon.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: threat-dragon
+spec:
+  type: ClusterIP
+  selector:
+    app: threat-dragon
+  ports:
+    - port: {{ .Values.threatDragon.port }}
+      targetPort: {{ .Values.threatDragon.port }}
+{{- end }}

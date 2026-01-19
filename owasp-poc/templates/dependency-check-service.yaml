@@ -1,0 +1,13 @@
+{{- if .Values.dependencyCheck.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: dependency-check
+spec:
+  type: ClusterIP
+  selector:
+    app: dependency-check
+  ports:
+    - port: {{ .Values.dependencyCheck.port }}
+      targetPort: {{ .Values.dependencyCheck.port }}
+{{- end }}

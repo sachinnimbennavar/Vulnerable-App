@@ -1,0 +1,27 @@
+{{- if .Values.dependencyCheck.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dependency-check
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dependency-check
+  template:
+    metadata:
+      labels:
+        app: dependency-check
+    spec:
+      containers:
+        - name: dependency-check
+          image: {{ .Values.dependencyCheck.image }}
+          ports:
+            - containerPort: {{ .Values.dependencyCheck.port }}
+          volumeMounts:
+            - name: dc-data
+              mountPath: {{ .Values.dependencyCheck.dataPath }}
+      volumes:
+        - name: dc-data
+          emptyDir: {}
+{{- end }}

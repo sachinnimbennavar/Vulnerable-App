@@ -1,0 +1,27 @@
+{{- if .Values.threatDragon.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: threat-dragon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: threat-dragon
+  template:
+    metadata:
+      labels:
+        app: threat-dragon
+    spec:
+      containers:
+        - name: threat-dragon
+          image: {{ .Values.threatDragon.image }}
+          ports:
+            - containerPort: {{ .Values.threatDragon.port }}
+          volumeMounts:
+            - name: td-data
+              mountPath: {{ .Values.threatDragon.dataPath }}
+      volumes:
+        - name: td-data
+          emptyDir: {}
+{{- end }}

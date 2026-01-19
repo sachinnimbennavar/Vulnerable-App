@@ -1,0 +1,13 @@
+{{- if .Values.zap.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: zap
+spec:
+  type: ClusterIP
+  selector:
+    app: zap
+  ports:
+    - port: {{ .Values.zap.port }}
+      targetPort: {{ .Values.zap.port }}
+{{- end }}
