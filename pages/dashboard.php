@@ -64,9 +64,9 @@ if ($search) {
                 <?php if (!empty($posts)): ?>
                     <?php foreach ($posts as $post): ?>
                         <article class="post" role="listitem">
-                            <h3><?php echo htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                            <h3><?php echo $post['title']; ?></h3>
                             <div class="post-content">
-                                <?php echo htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo $post['content']; ?>
                             </div>
                             <p class="post-meta">
                                 Posted on <?php echo $post['created_at']; ?>

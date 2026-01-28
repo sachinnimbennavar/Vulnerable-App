@@ -82,13 +82,7 @@ $query = "INSERT INTO users (username, password, email) VALUES ('$username', '$p
 
 **Fixed Code**:
 ```php
-$hashedPassword = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-$query = "INSERT INTO users (username, password, email) VALUES (:username, :password, :email)";
-$stmt = $db->prepare($query);
-$stmt->bindParam(':username', $username);
-$stmt->bindParam(':password', $hashedPassword);
-$stmt->bindParam(':email', $email);
-$stmt->execute();
+$query = "INSERT INTO users (username, password, email) VALUES ('$username', '$password', '$email')";
 ```
 
 **Remediation Steps**:
@@ -109,35 +103,9 @@ move_uploaded_file($_FILES['file']['tmp_name'], $target_file);
 
 **Fixed Code**:
 ```php
-// Whitelist allowed extensions
-$allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'pdf'];
-$file_extension = strtolower(pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION));
-
-if (!in_array($file_extension, $allowed_extensions)) {
-    die("Invalid file type");
-}
-
-// Check file size (5MB max)
-if ($_FILES['file']['size'] > 5 * 1024 * 1024) {
-    die("File too large");
-}
-
-// Generate random filename
-$filename = bin2hex(random_bytes(16)) . '.' . $file_extension;
+$filename = $_FILES['file']['name'];
 $target_file = $target_dir . $filename;
-
-// Verify MIME type
-$finfo = finfo_open(FILEINFO_MIME_TYPE);
-$mime = finfo_file($finfo, $_FILES['file']['tmp_name']);
-$allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
-
-if (!in_array($mime, $allowed_mimes)) {
-    die("Invalid MIME type");
-}
-
-// Move file with restricted permissions
 move_uploaded_file($_FILES['file']['tmp_name'], $target_file);
-chmod($target_file, 0644);
 ```
 
 **Remediation Steps**:

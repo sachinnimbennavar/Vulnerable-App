@@ -1,4 +1,5 @@
 <?php
+require_once 'setup_db.php';
 // Main application entry point
 
 // --- BEGIN SECURITY HEADERS ---

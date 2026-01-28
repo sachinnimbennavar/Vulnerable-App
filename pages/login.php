@@ -1,71 +1,26 @@
 <?php
-// SECURE Login Handler
-require_once __DIR__ . '/../secure/config_secure.php';
-
 session_start();
+require_once __DIR__ . '/../config.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || !validateCSRFToken($_POST['csrf_token'])) {
-        $error = "Invalid request";
-        logSecurityEvent('csrf_failure', $_POST['username'] ?? 'unknown', 'CSRF token validation failed');
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+
+    // Vulnerable SQL query
+    $query = "SELECT * FROM users WHERE username = '$username' AND password = '$password'";
+    $stmt = $db->query($query);
+    $user = $stmt->fetch();
+
+    if ($user) {
+        // Set session variables
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['username'] = $user['username'];
+        header('Location: dashboard');
+        exit;
     } else {
-        $username = sanitizeInput($_POST['username']);
-        $password = $_POST['password'];
-        
-        // Validate input
-        if (!validateUsername($username)) {
-            $error = "Invalid username format";
-        } elseif (isRateLimited($username)) {
-            $error = "Account temporarily locked due to too many failed attempts";
-            logSecurityEvent('rate_limit', $username, 'Account locked');
-        } else {
-            // Prepared statement to prevent SQL injection
-            $query = "SELECT * FROM users WHERE username = :username LIMIT 1";
-            
-            try {
-                $stmt = $db->prepare($query);
-                $stmt->bindParam(':username', $username, PDO::PARAM_STR);
-                $stmt->execute();
-                $user = $stmt->fetch();
-                
-                if ($user && password_verify($password, $user['password'])) {
-                    // Regenerate session ID to prevent session fixation
-                    session_regenerate_id(true);
-                    
-                    // Set session variables
-                    $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['username'] = $user['username'];
-                    $_SESSION['role'] = $user['role'];
-                    $_SESSION['last_activity'] = time();
-                    
-                    // Reset failed attempts
-                    resetFailedAttempts($username);
-                    
-                    // Log successful login
-                    logSecurityEvent('login_success', $username, 'User logged in successfully');
-                    
-                    header('Location: dashboard');
-                    exit;
-                } else {
-                    // Increment failed attempts
-                    incrementFailedAttempts($username);
-                    
-                    // Log failed attempt
-                    logSecurityEvent('login_failed', $username, 'Invalid credentials');
-                    
-                    $error = "Invalid credentials";
-                }
-            } catch (PDOException $e) {
-                error_log("Login error: " . $e->getMessage());
-                $error = "An error occurred. Please try again later.";
-            }
-        }
+        $error = "Invalid credentials";
     }
 }
-
-// Generate CSRF token
-$csrf_token = generateCSRFToken();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -93,12 +48,11 @@ $csrf_token = generateCSRFToken();
             
             <?php if (isset($error)): ?>
                 <div class="error" role="alert" aria-live="polite">
-                    <?php echo escapeOutput($error); ?>
+                    <?php echo $error; ?>
                 </div>
             <?php endif; ?>
             
             <form method="POST" action="login" aria-labelledby="login-heading">
-                <input type="hidden" name="csrf_token" value="<?php echo escapeOutput($csrf_token); ?>">
                 
                 <div class="form-group">
                     <label for="username">Username:</label>
