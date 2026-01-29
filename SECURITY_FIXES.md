@@ -129,18 +129,8 @@ $query = "SELECT * FROM users WHERE id = $profile_id";
 
 **Fixed Code**:
 ```php
-// Only allow users to view their own profile
-$profile_id = $_SESSION['user_id'];
-
-// Or implement proper authorization check
-if ($_GET['id'] != $_SESSION['user_id'] && $_SESSION['role'] != 'admin') {
-    die("Access denied");
-}
-
-$query = "SELECT * FROM users WHERE id = :id";
-$stmt = $db->prepare($query);
-$stmt->bindParam(':id', $profile_id, PDO::PARAM_INT);
-$stmt->execute();
+$profile_id = isset($_GET['id']) ? $_GET['id'] : $_SESSION['user_id'];
+$query = "SELECT * FROM users WHERE id = $profile_id";
 ```
 
 **Remediation Steps**:
@@ -160,22 +150,10 @@ $stmt->execute();
 ```
 
 **Fixed Code**:
-```php
-// Generate CSRF token
-if (!isset($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
-// In form
+```html
 <form method="POST" action="login">
-    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-    <!-- other fields -->
+    <!-- No CSRF token -->
 </form>
-
-// Validate on submission
-if ($_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-    die("CSRF token validation failed");
-}
 ```
 
 **Remediation Steps**:
@@ -195,28 +173,8 @@ ini_set('session.cookie_secure', '0');
 
 **Fixed Code**:
 ```php
-ini_set('session.cookie_httponly', '1');
-ini_set('session.cookie_secure', '1');
-ini_set('session.cookie_samesite', 'Strict');
-ini_set('session.use_strict_mode', '1');
-ini_set('session.use_only_cookies', '1');
-ini_set('session.cookie_lifetime', 0);
-
-session_start();
-
-// Regenerate session ID on login
-if (isset($_POST['login'])) {
-    session_regenerate_id(true);
-}
-
-// Implement session timeout
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
-    session_unset();
-    session_destroy();
-    header('Location: login');
-    exit;
-}
-$_SESSION['last_activity'] = time();
+ini_set('session.cookie_httponly', '0');
+ini_set('session.cookie_secure', '0');
 ```
 
 **Remediation Steps**:
@@ -243,9 +201,9 @@ $_SESSION['last_activity'] = time();
 **Fixed Dependencies**:
 ```json
 {
-  "monolog/monolog": "^3.5",
-  "symfony/yaml": "^6.4",
-  "twig/twig": "^3.8"
+  "monolog/monolog": "1.23.0",
+  "symfony/yaml": "3.4.0",
+  "twig/twig": "1.42.0"
 }
 ```
 
@@ -263,28 +221,7 @@ composer audit
 
 ### 10. Missing Security Headers
 
-**Fixed Code** (add to `index.php` or `.htaccess`):
-```php
-header("X-Frame-Options: DENY");
-header("X-Content-Type-Options: nosniff");
-header("X-XSS-Protection: 1; mode=block");
-header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
-header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");
-header("Referrer-Policy: strict-origin-when-cross-origin");
-header("Permissions-Policy: geolocation=(), microphone=(), camera=()");
-```
 
-**Or in `.htaccess`**:
-```apache
-<IfModule mod_headers.c>
-    Header always set X-Frame-Options "DENY"
-    Header always set X-Content-Type-Options "nosniff"
-    Header always set X-XSS-Protection "1; mode=block"
-    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
-    Header always set Content-Security-Policy "default-src 'self'"
-    Header always set Referrer-Policy "strict-origin-when-cross-origin"
-</IfModule>
-```
 
 ### 11. Information Disclosure
 
