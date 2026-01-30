@@ -1,6 +1,6 @@
 apiVersion: v2
 name: owasp-poc
-description: POC Helm chart for OWASP tools
+description: Helm chart for OWASP tools
 type: application
 version: 0.1.0
 appVersion: "1.0"

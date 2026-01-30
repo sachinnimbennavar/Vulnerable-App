@@ -150,10 +150,22 @@ $query = "SELECT * FROM users WHERE id = $profile_id";
 ```
 
 **Fixed Code**:
-```html
+```php
+// Generate CSRF token
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// In form
 <form method="POST" action="login">
-    <!-- No CSRF token -->
+    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+    <!-- other fields -->
 </form>
+
+// Validate on submission
+if ($_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    die("CSRF token validation failed");
+}
 ```
 
 **Remediation Steps**:
@@ -173,8 +185,28 @@ ini_set('session.cookie_secure', '0');
 
 **Fixed Code**:
 ```php
-ini_set('session.cookie_httponly', '0');
-ini_set('session.cookie_secure', '0');
+ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_secure', '1');
+ini_set('session.cookie_samesite', 'Strict');
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+ini_set('session.cookie_lifetime', 0);
+
+session_start();
+
+// Regenerate session ID on login
+if (isset($_POST['login'])) {
+    session_regenerate_id(true);
+}
+
+// Implement session timeout
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
+    session_unset();
+    session_destroy();
+    header('Location: login');
+    exit;
+}
+$_SESSION['last_activity'] = time();
 ```
 
 **Remediation Steps**:
@@ -201,9 +233,9 @@ ini_set('session.cookie_secure', '0');
 **Fixed Dependencies**:
 ```json
 {
-  "monolog/monolog": "1.23.0",
-  "symfony/yaml": "3.4.0",
-  "twig/twig": "1.42.0"
+  "monolog/monolog": "^3.5",
+  "symfony/yaml": "^6.4",
+  "twig/twig": "^3.8"
 }
 ```
 
@@ -221,7 +253,28 @@ composer audit
 
 ### 10. Missing Security Headers
 
+**Fixed Code** (add to `index.php` or `.htaccess`):
+```php
+header("X-Frame-Options: DENY");
+header("X-Content-Type-Options: nosniff");
+header("X-XSS-Protection: 1; mode=block");
+header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");
+header("Referrer-Policy: strict-origin-when-cross-origin");
+header("Permissions-Policy: geolocation=(), microphone=(), camera=()");
+```
 
+**Or in `.htaccess`**:
+```apache
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options "DENY"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set Content-Security-Policy "default-src 'self'"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+```
 
 ### 11. Information Disclosure
 
@@ -320,9 +373,10 @@ if (customCode) {
 
 **Fixed Code**:
 ```javascript
-// Remove entirely or use safe alternatives
-// If dynamic code execution is needed, use Function constructor with strict validation
-// Better: Don't allow dynamic code execution at all
+var customCode = urlParams.get('code');
+if (customCode) {
+    eval(customCode); // DANGEROUS!
+}
 ```
 
 ### 14. Prevent XSS in JavaScript
@@ -334,19 +388,7 @@ $('.message-container').html(message);
 
 **Fixed Code**:
 ```javascript
-// Use text() instead of html()
-$('.message-container').text(message);
-
-// Or properly encode HTML
-function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-$('.message-container').html(escapeHtml(message));
+$('.message-container').html(message);
 ```
 
 ### 15. Update jQuery
@@ -357,9 +399,7 @@ $('.message-container').html(escapeHtml(message));
 
 **Fixed Version**:
 ```html
-<script src="https://code.jquery.com/jquery-3.7.1.min.js" 
-        integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs" 
-        crossorigin="anonymous"></script>
+<script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
 ```
 
 ## Configuration Hardening
@@ -367,37 +407,20 @@ $('.message-container').html(escapeHtml(message));
 ### Apache Security Configuration
 
 ```apache
-# httpd.conf (Secure Version)
-<VirtualHost *:443>
+# httpd.conf (Vulnerable Version)
+<VirtualHost *:80>
     ServerName localhost
     DocumentRoot /var/www/html
     
-    # Enable SSL
-    SSLEngine on
-    SSLCertificateFile /path/to/cert.pem
-    SSLCertificateKeyFile /path/to/key.pem
-    
     <Directory /var/www/html>
-        Options -Indexes -FollowSymLinks
-        AllowOverride None
+        Options +Indexes +FollowSymLinks
+        AllowOverride All
         Require all granted
-        
-        # Prevent access to sensitive files
-        <FilesMatch "^\.">
-            Require all denied
-        </FilesMatch>
     </Directory>
     
-    # Disable server signature
-    ServerSignature Off
-    ServerTokens Prod
-    
-    # Restrict upload directory
-    <Directory /var/www/html/uploads>
-        php_flag engine off
-        Options -ExecCGI
-        AddType text/plain .php .php3 .phtml
-    </Directory>
+    # Expose server version
+    ServerSignature On
+    ServerTokens Full
 </VirtualHost>
 ```
 
